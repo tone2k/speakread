@@ -68,7 +68,7 @@ struct NightstandView: View {
             if !reader.isSpeaking || reader.isPaused { engine.playReading(document) } else { reader.pause() }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .preferredColorScheme(.dark)
+        .environment(\.colorScheme, .dark)
         .onAppear {
             if reader.sleepAt == nil { reader.setSleep(minutes: engine.settings.sleepMinutes) }
         }

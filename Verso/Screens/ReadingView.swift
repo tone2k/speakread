@@ -132,10 +132,15 @@ struct ReadingView: View {
         .gesture(
             DragGesture(minimumDistance: 40).onEnded { value in
                 let pairs = (pagination.pageCount + 1) / 2
-                if value.translation.width < 0 { spreadPair = min(pair + 1, max(0, pairs - 1)) }
-                else { spreadPair = max(pair - 1, 0) }
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    if value.translation.width < 0 { spreadPair = min(pair + 1, max(0, pairs - 1)) }
+                    else { spreadPair = max(pair - 1, 0) }
+                }
             }
         )
+        .id(pair)
+        .transition(.opacity)
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.6), trigger: pair)
         .onChange(of: currentPage) { _, new in
             if spreadPair != nil, new / 2 != spreadPair { spreadPair = nil }
         }
@@ -333,6 +338,8 @@ struct HoldToNoteButton: View {
         .frame(minHeight: large ? 64 : 44)
         .background(Capsule().fill(holding ? Theme.ribbon : Theme.card))
         .contentShape(Capsule())
+        .animation(.snappy, value: holding)
+        .sensoryFeedback(.impact(flexibility: .soft), trigger: holding)
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { _ in

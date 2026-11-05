@@ -35,6 +35,8 @@ struct RootView: View {
         } message: {
             Text(engine.lastError ?? "")
         }
+        // Paper is always light. Nightstand sets its own dark scheme on its subtree.
+        .environment(\.colorScheme, .light)
     }
 }
 

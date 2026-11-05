@@ -21,9 +21,14 @@ struct PocketView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                if let continuing = engine.continuing {
+                if engine.recorder.isRecording {
+                    RecordingCard()
+                        .padding(.bottom, 26)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                } else if let continuing = engine.continuing {
                     ContinueCard(document: continuing)
                         .padding(.bottom, 26)
+                        .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
                 HStack(alignment: .firstTextBaseline, spacing: 22) {
@@ -58,18 +63,25 @@ struct PocketView: View {
             .padding(.bottom, 24)
         }
         .scrollDismissesKeyboard(.interactively)
+        .animation(.snappy, value: engine.recorder.isRecording)
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 10) {
                 Button {
                     engine.startRecording()
                 } label: {
-                    Circle().fill(.white).frame(width: 28, height: 28)
+                    if engine.recorder.isRecording {
+                        RoundedRectangle(cornerRadius: 6).fill(.white).frame(width: 26, height: 26)
+                    } else {
+                        Circle().fill(.white).frame(width: 28, height: 28)
+                    }
                 }
                 .buttonStyle(RibbonButtonStyle())
-                .accessibilityLabel("Record")
-                Text("Tap to record")
+                .accessibilityLabel(engine.recorder.isRecording ? "Open the recording" : "Record")
+                .sensoryFeedback(.impact(flexibility: .soft), trigger: engine.recorder.isRecording)
+                Text(engine.recorder.isRecording ? "Recording · tap to open" : "Tap to record")
                     .font(Theme.ui(12))
                     .foregroundStyle(Theme.ink2)
+                    .contentTransition(.opacity)
             }
             .frame(maxWidth: .infinity)
             .padding(.top, 10)
@@ -116,6 +128,56 @@ struct ContinueCard: View {
         case .recording:
             return "\(formatTimecode(document.duration)) · \(document.createdAt.formatted(date: .abbreviated, time: .shortened))"
         }
+    }
+}
+
+/// The ribbon while a recording runs in the background: elapsed time and the last words.
+struct RecordingCard: View {
+    @Environment(Engine.self) private var engine
+
+    var body: some View {
+        Button {
+            engine.startRecording()
+        } label: {
+            HStack(alignment: .top, spacing: 22) {
+                RibbonTab(height: 96)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        PulsingDot()
+                        Text("Recording").kicker()
+                    }
+                    Text(formatTimecode(engine.recorder.elapsed))
+                        .font(Theme.mono(28, weight: .medium))
+                        .foregroundStyle(Theme.ink)
+                        .contentTransition(.numericText())
+                    Text(String(engine.recorder.transcript.plain.suffix(80)))
+                        .font(Theme.serif(15))
+                        .foregroundStyle(Theme.ink2)
+                        .lineLimit(1)
+                }
+                .padding(.top, 14)
+                Spacer()
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// The small red dot that breathes while something records.
+struct PulsingDot: View {
+    var color: Color = Theme.ribbon
+
+    var body: some View {
+        Circle()
+            .fill(color)
+            .frame(width: 10, height: 10)
+            .overlay(Circle().stroke(color.opacity(0.18), lineWidth: 4).padding(-4))
+            .phaseAnimator([1.0, 0.45]) { view, phase in
+                view.opacity(phase)
+            } animation: { _ in
+                .easeInOut(duration: 0.9)
+            }
+            .accessibilityHidden(true)
     }
 }
 

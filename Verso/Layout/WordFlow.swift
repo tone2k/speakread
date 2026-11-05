@@ -70,6 +70,7 @@ struct WordRun: View {
                     .accessibilityAddTraits(span.id == currentIndex ? [.isSelected] : [])
             }
         }
+        .animation(.easeOut(duration: 0.12), value: currentIndex)
     }
 
     private func wordColor(_ span: TimedSpan) -> Color {
@@ -96,6 +97,7 @@ struct Word: View {
                     Theme.ribbon.opacity(0.14)
                         .overlay(alignment: .bottom) { Theme.ribbon.frame(height: 2) }
                         .padding(.trailing, trailingSpace)
+                        .transition(.opacity)
                 }
             }
             .overlay(alignment: .topTrailing) {

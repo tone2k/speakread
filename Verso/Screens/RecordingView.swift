@@ -30,6 +30,9 @@ struct RecordingView: View {
             .animation(.smooth, value: fold)
         }
         .paperBackground()
+        .sensoryFeedback(.impact(flexibility: .soft), trigger: engine.recorder.isRecording)
+        .sensoryFeedback(.selection, trigger: engine.recorder.marks.count)
+        .sensoryFeedback(.selection, trigger: engine.recorder.isPaused)
         .navigationTitle("")
         .toolbarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -122,9 +125,11 @@ struct RecordingView: View {
 
     private var status: some View {
         HStack(spacing: 10) {
-            Circle().fill(Theme.ribbon).frame(width: 10, height: 10)
-                .overlay(Circle().stroke(Theme.ribbon.opacity(0.18), lineWidth: 4).padding(-4))
-                .opacity(engine.recorder.isPaused ? 0.4 : 1)
+            if engine.recorder.isPaused {
+                Circle().fill(Theme.ribbon.opacity(0.4)).frame(width: 10, height: 10)
+            } else {
+                PulsingDot()
+            }
             Text(engine.recorder.isPaused ? "Paused" : "Recording").font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.ink)
             Text("· \(engine.recorder.earsName) · on this iPhone").font(Theme.ui(13)).foregroundStyle(Theme.ink2)
             Spacer()

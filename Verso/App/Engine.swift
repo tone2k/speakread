@@ -44,6 +44,15 @@ final class Engine {
             document.spanIndex = span
             try? self?.context?.save()
         }
+        seedSampleIfNeeded()
+    }
+
+    /// Puts one public-domain book on the shelf the first time Verso opens.
+    private func seedSampleIfNeeded() {
+        guard let context, !UserDefaults.standard.bool(forKey: SampleBook.seededKey) else { return }
+        context.insert(SampleBook.make())
+        try? context.save()
+        UserDefaults.standard.set(true, forKey: SampleBook.seededKey)
     }
 
     // MARK: Recording
