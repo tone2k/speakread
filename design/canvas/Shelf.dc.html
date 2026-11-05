@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The Shelf · open flat</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&amp;family=Inter:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;font-family:Inter,system-ui,sans-serif;color:#1B1915}
+a{color:#9E2616}a:hover{color:#C7321F}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 951px; height: 669px; box-sizing: border-box; background: #F7F4EE; position: relative; overflow: hidden; display: flex">
+
+  <div aria-hidden="true" style="position: absolute; left: 461px; top: 0; width: 30px; height: 669px; background: linear-gradient(90deg, rgba(27,25,21,0) 0%, rgba(27,25,21,0.07) 40%, rgba(27,25,21,0.13) 50%, rgba(27,25,21,0.07) 60%, rgba(27,25,21,0) 100%)"></div>
+
+  <div style="width: 476px; box-sizing: border-box; padding: 44px 44px 36px 44px; display: flex; flex-direction: column; gap: 14px">
+    <div style="display: flex; align-items: baseline; gap: 14px">
+      <div style="font-family: Newsreader, Georgia, serif; font-weight: 500; font-size: 42px; line-height: 1; color: #1B1915">Said</div>
+      <div style="font-size: 13px; color: #5A554B">27 recordings · 6 h 12 min</div>
+    </div>
+    <div style="display: flex; flex-direction: column; flex: 1; min-height: 0">
+      <sc-for list="{{said}}" as="g" hint-placeholder-count="3">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #5A554B; padding: 14px 0 4px 0">{{g.day}}</div>
+        <sc-for list="{{g.items}}" as="it" hint-placeholder-count="2">
+          <a href="RecordingSpread.dc.html" style="display: flex; flex-direction: column; gap: 3px; padding: 10px 0; border-top: 1px solid #D9D2C4; text-decoration: none">
+            <div style="display: flex; align-items: baseline; gap: 10px">
+              <div style="font-size: 16px; font-weight: 500; color: #1B1915; flex: 1">{{it.title}}</div>
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #5A554B">{{it.dur}}</div>
+            </div>
+            <div style="font-family: Newsreader, Georgia, serif; font-size: 15px; line-height: 1.35; color: #5A554B; overflow: hidden; white-space: nowrap; text-overflow: ellipsis">{{it.line}}</div>
+          </a>
+        </sc-for>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="width: 411px; box-sizing: border-box; padding: 44px 16px 36px 36px; display: flex; flex-direction: column; gap: 14px">
+    <div style="display: flex; align-items: baseline; gap: 14px">
+      <div style="font-family: Newsreader, Georgia, serif; font-weight: 500; font-size: 42px; line-height: 1; color: #1B1915">Read</div>
+      <div style="font-size: 13px; color: #5A554B">14 books · 3 in progress</div>
+    </div>
+
+    <a href="Reading.dc.html" style="display: flex; align-items: center; gap: 14px; background: #EDE8DE; border-radius: 16px; padding: 14px; text-decoration: none; position: relative; overflow: hidden">
+      <div aria-hidden="true" style="position: absolute; top: 0; right: 18px; width: 10px; height: 44px; background: #C7321F; clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 84%, 0 100%)"></div>
+      <div aria-hidden="true" style="width: 44px; height: 60px; border-radius: 3px; background: #1B1915; display: flex; align-items: flex-end; padding: 5px; box-sizing: border-box"><div style="width: 62%; height: 2px; background: #C7321F"></div></div>
+      <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0">
+        <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #5A554B">Continue</div>
+        <div style="font-family: Newsreader, Georgia, serif; font-size: 18px; line-height: 1.2; color: #1B1915">The Left Hand of Darkness</div>
+        <div style="font-size: 12px; color: #5A554B">Chapter 7 · 12 min left · 62%</div>
+      </div>
+    </a>
+
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; flex: 1; min-height: 0; align-content: start">
+      <sc-for list="{{books}}" as="b" hint-placeholder-count="6">
+        <a href="Reading.dc.html" style="height: 150px; border-radius: 6px; background: {{b.bg}}; color: {{b.fg}}; padding: 12px 12px 10px 12px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; text-decoration: none; box-shadow: 0 1px 0 rgba(27,25,21,0.06), 0 6px 16px rgba(27,25,21,0.10)">
+          <div style="display: flex; flex-direction: column; gap: 4px">
+            <div style="font-family: Newsreader, Georgia, serif; font-weight: 500; font-size: 15px; line-height: 1.15">{{b.title}}</div>
+            <div style="font-size: 10px; opacity: 0.75">{{b.author}}</div>
+          </div>
+          <div aria-hidden="true" style="height: 2px; background: rgba(127,127,127,0.35); position: relative"><div style="position: absolute; left: 0; top: 0; height: 2px; background: #C7321F; width: {{b.pct}}"></div></div>
+        </a>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="width: 64px; box-sizing: border-box; padding: 44px 12px 36px 0; display: flex; flex-direction: column; align-items: center; gap: 10px">
+    <a href="Recording.dc.html" aria-label="Record" style="width: 48px; height: 48px; border-radius: 24px; background: #C7321F; display: flex; align-items: center; justify-content: center; text-decoration: none; box-shadow: 0 6px 16px rgba(199,50,31,0.3)"><div aria-hidden="true" style="width: 16px; height: 16px; border-radius: 8px; background: #FFFFFF"></div></a>
+    <button aria-label="Add a book or audio file" style="width: 48px; height: 48px; border-radius: 24px; border: 1px solid #D9D2C4; background: #F7F4EE; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1B1915" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button aria-label="Search everything you said and read" style="width: 48px; height: 48px; border-radius: 24px; border: 1px solid #D9D2C4; background: #F7F4EE; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1B1915" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg></button>
+    <div style="flex: 1"></div>
+    <a href="Settings.dc.html" aria-label="Ears and Voice settings" style="width: 48px; height: 48px; border-radius: 24px; border: 1px solid #D9D2C4; background: #F7F4EE; display: flex; align-items: center; justify-content: center; text-decoration: none"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1B1915" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2" fill="#F7F4EE"/><circle cx="15" cy="12" r="2" fill="#F7F4EE"/><circle cx="8" cy="17" r="2" fill="#F7F4EE"/></svg></a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":951,"height":669}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      said: [
+        { day: 'Today', items: [
+          { title: 'Product sync', dur: '38:12', line: 'Okay so the main thing for Q1 is the onboarding flow, and Priya thinks…' },
+          { title: 'Idea while walking', dur: '02:41', line: 'What if the fold were the spine, and the ribbon just lay across…' }
+        ]},
+        { day: 'Yesterday', items: [
+          { title: 'Call with Dr. Haddad', dur: '21:07', line: 'Take the second dose with food, and if the dizziness comes back…' },
+          { title: 'Reading notes · Piranesi', dur: '04:50', line: 'The halls are a memory palace. Compare with chapter three of…' }
+        ]},
+        { day: 'Last week', items: [
+          { title: 'Lecture · Systems thinking', dur: '1:12:30', line: 'A stock is anything you can count at a moment in time. A flow is…' }
+        ]}
+      ],
+      books: [
+        { title: 'Piranesi', author: 'Susanna Clarke', bg: '#EDE8DE', fg: '#1B1915', pct: '34%' },
+        { title: 'Thinking in Systems', author: 'Donella Meadows', bg: '#1B1915', fg: '#E8E2D5', pct: '80%' },
+        { title: 'Braiding Sweetgrass', author: 'Robin Wall Kimmerer', bg: '#CFC6B4', fg: '#1B1915', pct: '0%' },
+        { title: 'A Pattern Language', author: 'Christopher Alexander', bg: '#0F0E0C', fg: '#E8E2D5', pct: '12%' },
+        { title: 'The Design of Everyday Things', author: 'Don Norman', bg: '#EDE8DE', fg: '#1B1915', pct: '100%' },
+        { title: 'Q3 board memo.pdf', author: 'Imported · 22 pages', bg: '#F7F4EE', fg: '#1B1915', pct: '0%' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

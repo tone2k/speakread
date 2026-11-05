@@ -1,0 +1,48 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-11-05T23:05:00Z"},
+  "title": "Verso for iPhone Duo",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1400, "h": 800, "title": "The look · ink, paper, one red ribbon", "radius": 24},
+    "Pocket.dc.html": {"x": 0, "y": 1060, "w": 466, "h": 678, "title": "Closed · Pocket (home)", "radius": 40},
+    "Recording.dc.html": {"x": 546, "y": 1060, "w": 466, "h": 678, "title": "Closed · Recording", "radius": 40},
+    "Listening.dc.html": {"x": 1092, "y": 1060, "w": 466, "h": 678, "title": "Closed · Listening to a book", "radius": 40},
+    "Settings.dc.html": {"x": 1638, "y": 1060, "w": 466, "h": 678, "title": "Closed · Ears & Voice", "radius": 40},
+    "Shelf.dc.html": {"x": 0, "y": 1998, "w": 951, "h": 669, "title": "Open · The Shelf (Said | Read)", "radius": 28},
+    "Reading.dc.html": {"x": 1031, "y": 1998, "w": 951, "h": 669, "title": "Open · Reading spread", "radius": 28},
+    "RecordingSpread.dc.html": {"x": 2062, "y": 1998, "w": 951, "h": 669, "title": "Open · Recording spread", "radius": 28},
+    "Lectern.dc.html": {"x": 0, "y": 2927, "w": 669, "h": 951, "title": "Laptop pose · Lectern", "radius": 28},
+    "Nightstand.dc.html": {"x": 749, "y": 2927, "w": 669, "h": 475, "title": "Tent pose · Nightstand", "radius": 28},
+    "MarginNote.dc.html": {"x": 1498, "y": 2927, "w": 951, "h": 669, "title": "Book pose · Margin note", "radius": 28},
+    "Flow.dc.html": {"x": 0, "y": 4138, "w": 2200, "h": 560, "title": "Fold continuity · what happens when you open and close", "radius": 24}
+  },
+  "order": [
+    "Main.dc.html",
+    "Pocket.dc.html",
+    "Recording.dc.html",
+    "Listening.dc.html",
+    "Settings.dc.html",
+    "Shelf.dc.html",
+    "Reading.dc.html",
+    "RecordingSpread.dc.html",
+    "Lectern.dc.html",
+    "Nightstand.dc.html",
+    "MarginNote.dc.html",
+    "Flow.dc.html"
+  ],
+  "notes": {
+    "t-closed": {"x": 0, "y": 820, "text": "Closed · 5.4″ outer display · 466 × 678 pt · one hand, one thumb", "kind": "title1", "maxW": 2100},
+    "t-open": {"x": 0, "y": 1758, "text": "Open flat · 7.6″ inner display · 951 × 669 pt · the fold is the spine of a book", "kind": "title1", "maxW": 2900},
+    "t-poses": {"x": 0, "y": 2687, "text": "Half-folded poses · the hinge holds 15°–165° · content away from the crease, controls where the hand is", "kind": "title1", "maxW": 2500},
+    "t-flow": {"x": 0, "y": 3898, "text": "Continuity · nothing restarts when the phone changes shape", "kind": "title1", "maxW": 2200},
+    "s-crease": {"x": 1031, "y": 2700, "w": 420, "text": "The crease is read at runtime with reservedRegions(kind: .division). Text columns keep an inner margin of division width + 24 pt. No tap target ever sits on the fold. In book pose the gutter widens and a soft page shadow appears, so the crease reads as a feature, not a flaw.", "fill": "red"},
+    "s-vertical": {"x": 2062, "y": 2700, "w": 420, "text": "Open wide, the control rail sits on the right edge under the thumb (Apple's vertical toolbar, as Things 3 does). The two tab words on the closed phone, Said and Read, become the two page headings when the phone opens.", "fill": "orange"},
+    "s-ribbon": {"x": 1092, "y": 1770, "w": 440, "text": "The ribbon tab at the top of the closed phone is the whole 'now playing' UI. It is a ribbon hanging out of a shut book: tap it to pick up where you left off. When nothing is in progress it is simply not there.", "fill": "red"},
+    "s-lectern": {"x": 0, "y": 3910, "w": 640, "text": "Laptop pose uses ArrangementView in split style with the division horizontal: the top view is the transcript (or the book text), the bottom view is the transport. Type steps up to 23 pt so a person across a table can follow. The same layout serves reading aloud while cooking: text on top, big transport below.", "fill": "teal"},
+    "s-night": {"x": 749, "y": 3440, "w": 640, "text": "Tent pose: the device reports a reserved division, and only one half faces the reader. Verso shows this StandBy-style view: near-black paper, ember red, the chapter and a sleep timer. Tapping either half pauses, so there is no need to find a button in the dark.", "fill": "purple"},
+    "s-note": {"x": 1498, "y": 3630, "w": 640, "text": "Margin notes are the point where recorder and reader meet. Hold the corner, speak, let go. The note is transcribed on-device and pinned to the sentence Ava was reading, with word timestamps on both sides. Later, 'Read my notes back' plays your notes in your Personal Voice, in book order.", "fill": "green"}
+  },
+  "designSystems": []
+}

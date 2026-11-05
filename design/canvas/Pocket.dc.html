@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pocket · closed home</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&amp;family=Inter:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;font-family:Inter,system-ui,sans-serif;color:#1B1915}
+a{color:#9E2616}a:hover{color:#C7321F}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 466px; height: 678px; box-sizing: border-box; background: #F7F4EE; position: relative; overflow: hidden; display: flex; flex-direction: column; padding: 0 24px 28px 24px">
+
+  <a href="Listening.dc.html" aria-label="Continue reading The Left Hand of Darkness" style="position: absolute; top: 0; left: 24px; width: 22px; height: 118px; background: #C7321F; clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 86%, 0 100%); box-shadow: 2px 4px 10px rgba(27,25,21,0.18); display: block"></a>
+
+  <div style="display: flex; flex-direction: column; gap: 4px; padding: 58px 0 0 44px; min-height: 118px; box-sizing: border-box">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #5A554B">Continue</div>
+    <div style="font-family: Newsreader, Georgia, serif; font-size: 20px; line-height: 1.2; color: #1B1915">The Left Hand of Darkness</div>
+    <div style="font-size: 13px; color: #5A554B">Chapter 7 · 12 min left · Ava is reading</div>
+  </div>
+
+  <div style="display: flex; align-items: baseline; gap: 22px; margin-top: 26px">
+    <a href="Pocket.dc.html" style="font-family: Newsreader, Georgia, serif; font-weight: 500; font-size: 44px; line-height: 1; color: #1B1915; text-decoration: none">Said</a>
+    <a href="Shelf.dc.html" style="font-family: Newsreader, Georgia, serif; font-weight: 500; font-size: 44px; line-height: 1; color: #5A554B; text-decoration: none; opacity: 0.55">Read</a>
+    <div style="margin-left: auto; font-size: 13px; color: #5A554B">Thursday 5 Nov</div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; margin-top: 18px; flex: 1; min-height: 0">
+    <sc-for list="{{items}}" as="it" hint-placeholder-count="3">
+      <div style="display: flex; flex-direction: column; gap: 5px; padding: 14px 0; border-top: 1px solid #D9D2C4">
+        <div style="display: flex; align-items: baseline; gap: 10px">
+          <div style="font-size: 17px; font-weight: 500; color: #1B1915; flex: 1">{{it.title}}</div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #5A554B">{{it.dur}}</div>
+        </div>
+        <div style="font-family: Newsreader, Georgia, serif; font-size: 16px; line-height: 1.35; color: #5A554B; overflow: hidden; white-space: nowrap; text-overflow: ellipsis">{{it.line}}</div>
+        <div style="font-size: 12px; color: #5A554B">{{it.when}}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 12px">
+    <button aria-label="Import audio or a book" style="width: 52px; height: 52px; border-radius: 26px; border: 1px solid #D9D2C4; background: #F7F4EE; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0">
+      <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1B1915" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 10px">
+      <a href="Recording.dc.html" aria-label="Record" style="width: 84px; height: 84px; border-radius: 42px; background: #C7321F; box-shadow: 0 8px 22px rgba(199,50,31,0.35); display: flex; align-items: center; justify-content: center; text-decoration: none">
+        <div aria-hidden="true" style="width: 28px; height: 28px; border-radius: 14px; background: #FFFFFF"></div>
+      </a>
+      <div style="font-size: 12px; color: #5A554B">Tap to record · hold for a quick note</div>
+    </div>
+    <button aria-label="Search" style="width: 52px; height: 52px; border-radius: 26px; border: 1px solid #D9D2C4; background: #F7F4EE; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0">
+      <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1B1915" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
+    </button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":466,"height":678}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      items: [
+        { title: 'Product sync', dur: '38:12', line: 'Okay so the main thing for Q1 is the onboarding flow, and Priya thinks we should…', when: 'Today, 14:05 · 2 marks' },
+        { title: 'Idea while walking', dur: '02:41', line: 'What if the fold were the spine, and the ribbon just lay across whatever you were…', when: 'Today, 08:12' },
+        { title: 'Call with Dr. Haddad', dur: '21:07', line: 'Take the second dose with food, and if the dizziness comes back we will…', when: 'Yesterday, 16:40 · 1 note' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

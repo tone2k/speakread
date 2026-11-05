@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Recording spread · open flat</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&amp;family=Inter:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;font-family:Inter,system-ui,sans-serif;color:#1B1915}
+a{color:#9E2616}a:hover{color:#C7321F}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 951px; height: 669px; box-sizing: border-box; background: #F7F4EE; position: relative; overflow: hidden; display: flex">
+
+  <div aria-hidden="true" style="position: absolute; left: 461px; top: 0; width: 30px; height: 669px; background: linear-gradient(90deg, rgba(27,25,21,0) 0%, rgba(27,25,21,0.07) 40%, rgba(27,25,21,0.13) 50%, rgba(27,25,21,0.07) 60%, rgba(27,25,21,0) 100%)"></div>
+
+  <div style="width: 476px; box-sizing: border-box; padding: 40px 44px 30px 48px; display: flex; flex-direction: column; gap: 18px">
+    <div style="display: flex; align-items: center; gap: 10px">
+      <div aria-hidden="true" style="width: 10px; height: 10px; border-radius: 5px; background: #C7321F; box-shadow: 0 0 0 4px rgba(199,50,31,0.18)"></div>
+      <div style="font-size: 13px; font-weight: 600; color: #1B1915">Recording</div>
+      <div style="font-size: 13px; color: #5A554B">· Parakeet · on this iPhone</div>
+    </div>
+    <div style="font-family: Newsreader, Georgia, serif; font-weight: 500; font-size: 34px; line-height: 1.1; color: #1B1915">Product sync</div>
+    <div style="display: flex; align-items: baseline; gap: 10px">
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 48px; font-weight: 500; letter-spacing: -0.02em; color: #1B1915; line-height: 1">02:14</div>
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 20px; color: #5A554B">.8</div>
+    </div>
+
+    <div aria-hidden="true" style="height: 64px; display: flex; align-items: center; gap: 3px; position: relative">
+      <sc-for list="{{bars}}" as="b" hint-placeholder-count="54">
+        <div style="width: 4px; border-radius: 2px; background: #C7321F; height: {{b.h}}; opacity: {{b.o}}"></div>
+      </sc-for>
+      <div style="position: absolute; right: 0; top: -6px; width: 12px; height: 76px; background: #C7321F; clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 86%, 0 100%)"></div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; flex: 1; min-height: 0">
+      <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #5A554B; padding-bottom: 6px">Marks</div>
+      <sc-for list="{{marks}}" as="m" hint-placeholder-count="3">
+        <button style="display: flex; align-items: center; gap: 14px; padding: 9px 0; border: 0; border-top: 1px solid #D9D2C4; background: transparent; cursor: pointer; text-align: left; width: 100%">
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #9E2616; width: 44px">{{m.t}}</div>
+          <div style="font-size: 15px; color: #1B1915">{{m.label}}</div>
+        </button>
+      </sc-for>
+    </div>
+
+    <div style="display: flex; align-items: center; justify-content: space-between">
+      <button style="width: 84px; height: 52px; border-radius: 26px; border: 1px solid #D9D2C4; background: #F7F4EE; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; padding: 0; font-size: 14px; font-weight: 500; color: #1B1915"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1B1915" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4h12l-2 4 2 4H5"/></svg>Mark</button>
+      <a href="Shelf.dc.html" aria-label="Stop recording" style="width: 76px; height: 76px; border-radius: 38px; background: #C7321F; box-shadow: 0 8px 22px rgba(199,50,31,0.35); display: flex; align-items: center; justify-content: center; text-decoration: none"><div aria-hidden="true" style="width: 24px; height: 24px; border-radius: 6px; background: #FFFFFF"></div></a>
+      <button aria-label="Pause" style="width: 84px; height: 52px; border-radius: 26px; border: 1px solid #D9D2C4; background: #F7F4EE; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; padding: 0; font-size: 14px; font-weight: 500; color: #1B1915"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="#1B1915"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>Pause</button>
+    </div>
+  </div>
+
+  <div style="width: 475px; box-sizing: border-box; padding: 40px 44px 30px 40px; display: flex; flex-direction: column; gap: 18px">
+    <div style="display: flex; align-items: baseline; justify-content: space-between">
+      <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #5A554B">Transcript · live</div>
+      <div style="font-size: 12px; color: #5A554B">0.3 s behind</div>
+    </div>
+    <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 18px; overflow: hidden">
+      <sc-for list="{{paras}}" as="p" hint-placeholder-count="3">
+        <div style="display: flex; gap: 16px">
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #9E2616; width: 40px; padding-top: 6px; flex-shrink: 0">{{p.t}}</div>
+          <div style="font-family: Newsreader, Georgia, serif; font-size: 18px; line-height: 1.5; color: {{p.color}}">{{p.text}}</div>
+        </div>
+      </sc-for>
+      <div style="display: flex; gap: 16px">
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #9E2616; width: 40px; padding-top: 6px; flex-shrink: 0">02:09</div>
+        <div style="font-family: Newsreader, Georgia, serif; font-size: 18px; line-height: 1.5; color: #1B1915">So the plan is: three screens, one question each, and the ribbon shows where you <span style="color: #5A554B">are in the</span> <span style="color: #A8A295">flow</span></div>
+      </div>
+    </div>
+    <div style="font-size: 12px; color: #5A554B">Tap any word to hear it · Select words to make a mark · Lighter words are still settling</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":951,"height":669}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = [8,12,20,30,18,10,24,40,34,16,8,14,28,46,38,20,10,18,32,24,12,8,16,36,52,44,26,12,8,20,30,22,10,6,14,26,42,56,40,24,12,8,18,34,28,14,8,10,22,38,30,16,8,12];
+    return {
+      bars: h.map((v, i) => ({ h: v + 'px', o: i < 8 ? '0.35' : (i < 20 ? '0.6' : '1') })),
+      marks: [
+        { t: '00:00', label: 'Kickoff' },
+        { t: '00:48', label: 'Onboarding tour' },
+        { t: '01:52', label: 'Pricing page' }
+      ],
+      paras: [
+        { t: '00:48', color: '#5A554B', text: 'Okay so the main thing for Q1 is the onboarding flow. Right now it is seven screens and nobody finishes it.' },
+        { t: '01:31', color: '#5A554B', text: 'Priya thinks we should cut the tour to three screens. The data from October says people leave on screen four.' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

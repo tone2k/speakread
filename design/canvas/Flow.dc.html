@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fold continuity</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&amp;family=Inter:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;font-family:Inter,system-ui,sans-serif;color:#1B1915}
+a{color:#9E2616}a:hover{color:#C7321F}
+</style>
+</helmet>
+<div style="width: 2200px; height: 560px; box-sizing: border-box; background: #F7F4EE; padding: 48px 56px; display: flex; flex-direction: column; gap: 28px">
+  <div style="display: flex; align-items: baseline; gap: 18px">
+    <div style="font-family: Newsreader, Georgia, serif; font-weight: 500; font-size: 34px; color: #1B1915">The phone changes shape. Verso keeps its place.</div>
+    <div style="font-size: 14px; color: #5A554B">Six moments, one rule: sound never stops, the ribbon never moves without you.</div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 20px; flex: 1">
+    <sc-for list="{{steps}}" as="s" hint-placeholder-count="6">
+      <div style="background: #EDE8DE; border-radius: 18px; padding: 22px 22px 20px 22px; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box">
+        <div style="display: flex; align-items: center; justify-content: center; height: 120px; gap: 14px">
+          <sc-if value="{{s.closed}}" hint-placeholder-val="{{ true }}">
+            <div aria-hidden="true" style="width: 54px; height: 78px; border-radius: 8px; background: #F7F4EE; border: 1.5px solid #1B1915; position: relative"><div style="position: absolute; top: -1px; left: 34px; width: 6px; height: 26px; background: #C7321F; clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%)"></div></div>
+          </sc-if>
+          <sc-if value="{{s.arrow}}" hint-placeholder-val="{{ true }}">
+            <svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#5A554B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg>
+          </sc-if>
+          <sc-if value="{{s.open}}" hint-placeholder-val="{{ true }}">
+            <div aria-hidden="true" style="width: 110px; height: 78px; border-radius: 8px; background: #F7F4EE; border: 1.5px solid #1B1915; position: relative"><div style="position: absolute; top: 0; left: 54px; width: 2px; height: 78px; background: rgba(27,25,21,0.22)"></div><div style="position: absolute; top: -1px; left: 52px; width: 6px; height: 40px; background: #C7321F; clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%)"></div><div style="position: absolute; left: 12px; top: 18px; width: 30px; height: 2px; background: #1B1915; opacity: 0.4"></div><div style="position: absolute; left: 12px; top: 26px; width: 24px; height: 2px; background: #1B1915; opacity: 0.4"></div><div style="position: absolute; left: 68px; top: 18px; width: 30px; height: 2px; background: #1B1915; opacity: 0.4"></div><div style="position: absolute; left: 68px; top: 26px; width: 22px; height: 2px; background: #1B1915; opacity: 0.4"></div></div>
+          </sc-if>
+          <sc-if value="{{s.laptop}}" hint-placeholder-val="{{ false }}">
+            <div aria-hidden="true" style="width: 110px; height: 90px; position: relative"><div style="position: absolute; left: 20px; bottom: 36px; width: 70px; height: 50px; border-radius: 6px 6px 0 0; background: #F7F4EE; border: 1.5px solid #1B1915; transform: skewX(-12deg)"></div><div style="position: absolute; left: 14px; bottom: 10px; width: 84px; height: 26px; border-radius: 0 0 6px 6px; background: #EDE8DE; border: 1.5px solid #1B1915"><div style="position: absolute; left: 34px; top: 7px; width: 12px; height: 12px; border-radius: 6px; background: #C7321F"></div></div></div>
+          </sc-if>
+          <sc-if value="{{s.tent}}" hint-placeholder-val="{{ false }}">
+            <div aria-hidden="true" style="width: 110px; height: 90px; position: relative"><div style="position: absolute; left: 18px; bottom: 10px; width: 54px; height: 70px; border-radius: 6px; background: #0F0E0C; border: 1.5px solid #1B1915; transform: skewY(-18deg)"><div style="position: absolute; left: 8px; top: 30px; width: 30px; height: 2px; background: #F2603F"></div></div><div style="position: absolute; left: 56px; bottom: 10px; width: 40px; height: 70px; border-radius: 6px; background: #1B1915; transform: skewY(22deg)"></div></div>
+          </sc-if>
+          <sc-if value="{{s.book}}" hint-placeholder-val="{{ false }}">
+            <div aria-hidden="true" style="width: 110px; height: 90px; position: relative"><div style="position: absolute; left: 6px; top: 8px; width: 50px; height: 74px; border-radius: 6px 0 0 6px; background: #F7F4EE; border: 1.5px solid #1B1915; transform: perspective(200px) rotateY(28deg); transform-origin: right center"></div><div style="position: absolute; left: 56px; top: 8px; width: 50px; height: 74px; border-radius: 0 6px 6px 0; background: #F7F4EE; border: 1.5px solid #1B1915; transform: perspective(200px) rotateY(-28deg); transform-origin: left center"><div style="position: absolute; right: 8px; bottom: 8px; width: 12px; height: 12px; border-radius: 6px; background: #C7321F"></div></div><div style="position: absolute; left: 53px; top: 6px; width: 6px; height: 40px; background: #C7321F; clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%)"></div></div>
+          </sc-if>
+        </div>
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #9E2616">{{s.kicker}}</div>
+        <div style="font-family: Newsreader, Georgia, serif; font-weight: 500; font-size: 22px; line-height: 1.15; color: #1B1915">{{s.title}}</div>
+        <div style="font-size: 14px; line-height: 1.5; color: #5A554B">{{s.body}}</div>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2200,"height":560}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      steps: [
+        { kicker: 'Open it', title: 'Two words become two pages', body: 'On the closed phone, Said and Read are tabs. Open the phone and they are the left and right page headings. The ribbon tab slides onto the spine. Nothing reloads.', closed: true, arrow: true, open: true, laptop: false, tent: false, book: false },
+        { kicker: 'Keep talking', title: 'The transcript spreads to the right', body: 'Recording closed, then open: audio never stops. The waveform stays on the left page where it was, and the live transcript flows onto the right page.', closed: true, arrow: true, open: true, laptop: false, tent: false, book: false },
+        { kicker: 'Close it', title: 'Ava keeps reading', body: 'Shut the phone mid-chapter and the voice goes on. The outer screen shows the ribbon tab and the sentence being read. One tap pauses. Open again and the spread is exactly where you left it.', closed: false, arrow: false, open: false, laptop: false, tent: false, book: false, closedOnly: true },
+        { kicker: 'Set it down', title: 'Lectern', body: 'Laptop pose: the text rises to the upright half, large enough to read across a table. Controls drop to the flat half where fingers rest. Nothing sits on the hinge.', closed: false, arrow: false, open: false, laptop: true, tent: false, book: false },
+        { kicker: 'Stand it up', title: 'Nightstand', body: 'Tent pose: dark paper, ember red, the chapter, time left, a sleep timer. Every target is thumb-sized. A tap on either half pauses.', closed: false, arrow: false, open: false, laptop: false, tent: true, book: false },
+        { kicker: 'Half-fold', title: 'Hold the corner, say a note', body: 'Book pose: the gutter widens and a soft page shadow appears. Hold the bottom corner and speak. The note is written down and pinned to the sentence being read, marked by a small red knot in the margin.', closed: false, arrow: false, open: false, laptop: false, tent: false, book: true }
+      ].map(s => ({ ...s, closed: s.closed || !!s.closedOnly }))
+    };
+  }
+}
+</script>
+</body>
+</html>
