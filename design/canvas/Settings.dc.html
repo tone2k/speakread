@@ -76,7 +76,11 @@ button{font-family:inherit}
   <div style="display: flex; flex-direction: column; gap: 8px">
     <div style="background: #EDE8DE; border-radius: 16px; display: flex; align-items: center; gap: 12px; padding: 13px 16px">
       <label for="siri" style="flex: 1; font-size: 16px; font-weight: 500; color: #1B1915">“Hey Siri, start Verso”</label>
-      <input id="siri" type="checkbox" checked style="width: 44px; height: 26px; accent-color: #C7321F; margin: 0">
+      <label for="siri" aria-label="Hey Siri, start Verso" style="position: relative; width: 51px; height: 31px; display: block; cursor: pointer">
+        <input id="siri" type="checkbox" checked style="position: absolute; opacity: 0; width: 0; height: 0; margin: 0">
+        <div aria-hidden="true" style="position: absolute; inset: 0; border-radius: 16px; background: #C7321F"></div>
+        <div aria-hidden="true" style="position: absolute; top: 2px; left: 22px; width: 27px; height: 27px; border-radius: 14px; background: #FFFFFF; box-shadow: 0 2px 6px rgba(27,25,21,0.25)"></div>
+      </label>
     </div>
   </div>
 
