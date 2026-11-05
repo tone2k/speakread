@@ -145,6 +145,8 @@ The screenshot's model list is kept but reorganized into two plain questions: wh
 
 ## 7. Build plan
 
+Status: steps 1 to 6 are implemented in `Verso.xcodeproj` with Apple's two speech engines. Third-party engines, measured pagination, and the award polish of step 7 remain.
+
 1. **Week 1 · Engine spike.** Timed text model, Capture → AppleEars live stream, AppleVoice with word boundaries. Prove: tap a word in a transcript, audio seeks; tap a word in a chapter, the voice starts there.
 2. **Week 2 · Closed screens.** Pocket, Recording, Listening on the outer display. Ribbon tab, record button, background audio, App Intent for Siri.
 3. **Week 3 · The spread.** Shelf and Reading spread with `ArrangementView` and reserved regions. EPUB import. Verify in the Xcode 27.1 iPhone Duo simulator, then on hardware.

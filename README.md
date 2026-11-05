@@ -8,9 +8,48 @@ Verso is a recorder that writes down what you say, and a reader that speaks what
   <img src="docs/screenshots/Main.png" alt="Verso brand board: wordmark, palette, type, and the three jobs of the ribbon" width="100%">
 </p>
 
+- **Xcode project:** `Verso.xcodeproj`. SwiftUI, SwiftData, Speech, AVFoundation, PDFKit. No third-party code. See [Build and run](#build-and-run).
 - **Design canvas (interactive, with notes):** https://claude.ai/artifact/SbNz7DXvZHtP676Y3quN9t
 - **Build spec:** [DESIGN.md](DESIGN.md) covers the data model, architecture, pose rules, and the build plan.
 - **Artboard sources:** [design/canvas](design/canvas). Re-render the screenshots with `node design/render.mjs`.
+
+## Build and run
+
+Requirements: a Mac with **Xcode 27.1 or later**. The project uses the iOS 27.1 SDK for the fold APIs. Everything else is standard Apple frameworks.
+
+```
+git clone https://github.com/tone2k/speakread.git
+cd speakread
+open Verso.xcodeproj
+```
+
+1. In Xcode, select the **Verso** target, then **Signing & Capabilities**, and choose your team. The bundle identifier is `com.tone2k.verso`. Change it if your team already uses it.
+2. Pick a run destination. **iPhone Duo** in the simulator folds from the Simulator menu. Your own Duo works over a cable or Wi‑Fi once it is paired with Xcode.
+3. Press Run.
+
+On the first recording, iOS asks for the microphone and speech recognition. With the default **Apple on-device** ears, iOS downloads the speech model for your language once, then works offline.
+
+### What is in the project
+
+| Folder | What it does |
+|---|---|
+| `Verso/App` | App entry, the `Engine` that owns audio and settings, the Siri intent ("Hey Siri, start Verso") |
+| `Verso/Model` | `TimedText`, the shared model: text with a time on every word. SwiftData `Document` and `Note` |
+| `Verso/Audio` | `Recorder` (microphone to file plus live transcript), `Reader` (book to speech with word highlighting), `Player` (recordings), two `Ears` engines |
+| `Verso/Import` | EPUB (with a small built-in zip reader), PDF, and audio file import |
+| `Verso/Layout` | `Fold`: pose from reserved regions. `Spread`: two views around the spine. `WordFlow`: tappable words. `Pagination` |
+| `Verso/Design` | The theme and the ribbon views |
+| `Verso/Screens` | Pocket, Shelf, Recording, Reading, Listening, Nightstand, Playback, Settings |
+
+### How the fold is handled
+
+`Fold.swift` reads `reservedRegions(kind: .division)` in a `GeometryReader`. An active division means the phone is partly folded: a vertical one is book pose, a horizontal one is laptop pose. An inactive division is the spine of the open phone. Compact width is the closed phone. Every screen switches layout on that one value, and nothing interactive is ever placed inside the division frame.
+
+### Not yet done
+
+- Parakeet, Whisper and SenseVoice engines. The `Ears` protocol is ready for them. Apple's on-device SpeechAnalyzer and classic dictation ship now.
+- Tent pose is a manual Nightstand button, because the SDK reports tent and laptop the same way.
+- Page breaks are estimated, not measured. Long words near a page edge can wrap one line early.
 
 ## The one idea
 
