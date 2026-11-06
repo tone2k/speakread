@@ -107,7 +107,10 @@ struct CastSheet: View {
         .presentationBackground(HUD.bg1)
         .onAppear {
             cast = document.cast ?? Cast()
-            appleVoices = Reader.castableVoices()
+            // The ten natural voices, plus your Personal Voice first when you have one:
+            // a character can speak in your voice.
+            let personal = AVSpeechSynthesisVoice.speechVoices().filter { $0.voiceTraits.contains(.isPersonalVoice) }
+            appleVoices = personal + Reader.castableVoices()
         }
     }
 
@@ -146,7 +149,7 @@ struct CastSheet: View {
                 }
             } else {
                 ForEach(appleVoices, id: \.identifier) { voice in
-                    Button("\(voice.name) · \(Self.quality(voice))") {
+                    Button(voice.voiceTraits.contains(.isPersonalVoice) ? "\(voice.name) · Your voice" : "\(voice.name) · \(Self.quality(voice))") {
                         var m = member
                         m.voiceIdentifier = voice.identifier
                         save(m)
