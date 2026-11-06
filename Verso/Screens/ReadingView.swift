@@ -14,6 +14,7 @@ struct ReadingView: View {
     @State private var showsNightstand = false
     @State private var showsNotes = false
     @State private var showsCast = false
+    @State private var showsVoicePicker = false
     @State private var spreadPair: Int?
     /// The seam trace's Y in spread coordinates, reported by whichever
     /// page currently holds the spoken line.
@@ -85,6 +86,9 @@ struct ReadingView: View {
         .sheet(isPresented: $showsCast) {
             CastSheet(document: document)
         }
+        .sheet(isPresented: $showsVoicePicker) {
+            VoicePickerSheet()
+        }
         .onAppear {
             if reader.document?.id != document.id { reader.load(document) }
             reader.voice = engine.settings.voice
@@ -140,6 +144,7 @@ struct ReadingView: View {
                 header: "CH \(String(format: "%02d", reader.chapterIndex + 1)) · \(chapterTitle.uppercased())",
                 headerTrailing: speakerName.map { "● \($0.uppercased())" } ?? "",
                 footer: engine.settings.activeVoiceDisplayName,
+                footerAction: { showsVoicePicker = true },
                 footerTrailing: right < pagination.pageCount ? String(format: "P.%03d", right + 1) : "",
                 fontSize: fontSize,
                 edge: .trailing,
@@ -214,6 +219,7 @@ struct ReadingView: View {
                                 .padding(.horizontal, HUD.Space.paneMargin)
                         }
                         ReadingTransport(document: document, compact: false, large: !reader.isDialogue)
+                        VoicePickerButton()
                         Spacer()
                     }
                     .frame(maxWidth: .infinity)
@@ -301,6 +307,10 @@ struct BookPage: View {
     let header: String
     let headerTrailing: String
     let footer: String
+    /// When set, the footer (the reading voice's name, on the spread's
+    /// trailing page) is a button that runs this — the in-book voice
+    /// switcher, same as the Listening view's VOICE button.
+    var footerAction: (() -> Void)?
     let footerTrailing: String
     let fontSize: CGFloat
     let edge: HorizontalEdge
@@ -335,7 +345,15 @@ struct BookPage: View {
             .frame(maxWidth: .infinity, maxHeight: follows ? .infinity : nil, alignment: .topLeading)
             Spacer(minLength: 0)
             HStack {
-                Text(footer).hudText(.meta).foregroundStyle(HUD.fg1)
+                if let footerAction {
+                    Button(action: footerAction) {
+                        Text(footer).hudText(.meta).foregroundStyle(HUD.fg1)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Reading voice: \(footer). Tap to change the voice.")
+                } else {
+                    Text(footer).hudText(.meta).foregroundStyle(HUD.fg1)
+                }
                 Spacer()
                 Text(footerTrailing).hudText(.meta).foregroundStyle(HUD.fg1)
             }

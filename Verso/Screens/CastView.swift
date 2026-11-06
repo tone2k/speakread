@@ -149,7 +149,7 @@ struct CastSheet: View {
                 }
             } else {
                 ForEach(appleVoices, id: \.identifier) { voice in
-                    Button(voice.voiceTraits.contains(.isPersonalVoice) ? "\(voice.name) · Your voice" : "\(voice.name) · \(Self.quality(voice))") {
+                    Button(voice.voiceTraits.contains(.isPersonalVoice) ? "Your Voice · \(Self.quality(voice))" : "\(voice.name) · \(Self.quality(voice))") {
                         var m = member
                         m.voiceIdentifier = voice.identifier
                         save(m)
@@ -201,7 +201,7 @@ struct CastSheet: View {
             return KokoroVoice.englishVoices.first { $0.id == id }?.name ?? id
         }
         if let id = member.voiceIdentifier, let voice = AVSpeechSynthesisVoice(identifier: id) {
-            return voice.name
+            return voice.voiceTraits.contains(.isPersonalVoice) ? "Your Voice" : voice.name
         }
         return member.isNarrator ? "Your voice" : "Default"
     }

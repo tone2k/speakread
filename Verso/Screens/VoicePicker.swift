@@ -134,3 +134,26 @@ struct VoicePickerSheet: View {
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 }
+
+/// The "VOICE · <name>" opener for the picker, for book surfaces that
+/// don't already carry one (the spread's stage, the lectern). The
+/// closed-phone Listening view has its own inline copy of this button.
+struct VoicePickerButton: View {
+    @Environment(Engine.self) private var engine
+    @State private var showsVoicePicker = false
+
+    var body: some View {
+        Button { showsVoicePicker = true } label: {
+            Text("VOICE · \(engine.settings.activeVoiceDisplayName.uppercased())")
+                .hudText(.meta)
+                .foregroundStyle(HUD.fg1)
+                .frame(minHeight: 44)
+                .padding(.horizontal, 12)
+                .overlay(Rectangle().strokeBorder(HUD.rule, lineWidth: 1))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Reading voice: \(engine.settings.activeVoiceDisplayName). Tap to change the voice.")
+        .sheet(isPresented: $showsVoicePicker) { VoicePickerSheet() }
+    }
+}

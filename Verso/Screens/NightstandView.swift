@@ -103,7 +103,9 @@ struct NightstandView: View {
     }
 
     private var status: String {
-        let voice = (reader.voice?.name ?? "Verso").uppercased()
+        // The one active voice's display name — right for both engines,
+        // and the Personal Voice reads as "Your Voice" here too.
+        let voice = engine.settings.activeVoiceDisplayName.uppercased()
         let state = reader.isSpeaking && !reader.isPaused ? "READING" : "READING PAUSED"
         return "CH \(String(format: "%02d", reader.chapterIndex + 1)) · \(voice) \(state)"
     }

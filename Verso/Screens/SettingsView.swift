@@ -167,10 +167,12 @@ struct SettingsView: View {
 
     /// Voices grouped best-first: Premium, then Enhanced. Compact voices are
     /// never offered. Only tiers installed on this device get a group.
+    /// The Personal Voice is NOT in these groups: it has its own row
+    /// below, the only place it appears, labeled "Your Voice".
     private var voiceGroups: [(title: String, voices: [AVSpeechSynthesisVoice])] {
         let tiers: [(String, AVSpeechSynthesisVoiceQuality)] = [("Premium", .premium), ("Enhanced", .enhanced)]
         return tiers.compactMap { title, quality in
-            let inTier = voices.filter { $0.quality == quality }
+            let inTier = voices.filter { $0.quality == quality && !$0.voiceTraits.contains(.isPersonalVoice) }
             return inTier.isEmpty ? nil : (title, inTier)
         }
     }
