@@ -17,17 +17,28 @@ struct ShelfView: View {
             Spread(fold: fold) {
                 SaidPage(recordings: recordings)
             } trailing: {
-                ReadPage(books: books, columns: fold.trailingWidth > 520 ? 4 : 3)
+                ReadPage(books: books, columns: shelfColumns(paneWidth: fold.trailingWidth))
             }
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 36) {
                     SaidPage(recordings: recordings, scrolls: false)
-                    ReadPage(books: books, columns: max(3, Int(fold.size.width / 170)), scrolls: false)
+                    ReadPage(books: books, columns: shelfColumns(paneWidth: fold.size.width), scrolls: false)
                 }
             }
         }
     }
+}
+
+/// Cartridge columns for a pane of this width. A cell must never be
+/// narrower than the cartridge's 150 pt design width plus its 12 pt
+/// gutter: the old rule (4 columns for any pane over 520 pt) produced
+/// ~141 pt cells on the Duo's spread, and the cards — then fixed at
+/// 150 pt wide — overflowed into each other. The count follows the
+/// pane, so cells are always honestly sized.
+func shelfColumns(paneWidth: CGFloat) -> Int {
+    let content = paneWidth - 64 // ReadPage's side margins
+    return min(6, max(2, Int((content + 12) / 162)))
 }
 
 struct SaidPage: View {
@@ -130,7 +141,9 @@ struct ReadPage: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 32)
         .padding(.vertical, 24)
 

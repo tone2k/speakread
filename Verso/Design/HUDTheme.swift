@@ -704,8 +704,8 @@ struct DataRow: View {
     }
 }
 
-/// A book on the shelf (was BookCover): 150 pt, bg1, 1 pt rule, 8 pt
-/// chamfer. The pattern band replaces the paper tints.
+/// A book on the shelf (was BookCover): cell-wide, 196 pt tall, bg1,
+/// 1 pt rule, 8 pt chamfer. The pattern band replaces the paper tints.
 struct Cartridge: View {
     enum Pattern: Int, CaseIterable {
         case solid, grid, hatch, scanline
@@ -737,7 +737,12 @@ struct Cartridge: View {
             }
         }
         .padding(12)
-        .frame(width: 150, height: 196)
+        // The width is the grid cell's, never a fixed 150: a fixed width
+        // inside narrower flexible columns is what piled the spread's
+        // cartridges on top of each other, clipped the first card's
+        // author line, and collided the progress bars.
+        .frame(maxWidth: .infinity)
+        .frame(height: 196)
         .background(HUD.bg1)
         .clipShape(Chamfer(cut: 8))
         .overlay(Chamfer(cut: 8).stroke(HUD.rule, lineWidth: 1))
