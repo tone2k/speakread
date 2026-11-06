@@ -150,7 +150,10 @@ struct DocumentRow: View {
     private var trailing: String {
         switch document.kind {
         case .recording: return formatTimecode(document.duration)
-        case .book: return String(format: "%03d%%", Int(document.progress * 100))
+        case .book:
+            // 0% means nothing — no readout until there is progress.
+            let percent = Int(document.progress * 100)
+            return percent > 0 ? String(format: "%03d%%", percent) : ""
         }
     }
 

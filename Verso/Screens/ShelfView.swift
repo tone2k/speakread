@@ -175,9 +175,13 @@ struct ReadPage: View {
     private func continueMeta(_ document: Document) -> String {
         if engine.reader.document?.id == document.id {
             let reader = engine.reader
-            return "CH \(String(format: "%02d", reader.chapterIndex + 1)) · ~\(max(0, reader.minutesLeft)) MIN LEFT · \(reader.progressPermille / 10)%"
+            let base = "CH \(String(format: "%02d", reader.chapterIndex + 1)) · ~\(max(0, reader.minutesLeft)) MIN LEFT"
+            let percent = reader.progressPermille / 10
+            return percent > 0 ? base + " · \(percent)%" : base
         }
         let minutes = Int(ceil(max(0, document.estimatedSecondsLeft) / 60))
-        return "CH \(String(format: "%02d", document.chapterIndex + 1)) · ~\(minutes) MIN LEFT · \(Int(document.progress * 100))%"
+        let base = "CH \(String(format: "%02d", document.chapterIndex + 1)) · ~\(minutes) MIN LEFT"
+        let percent = Int(document.progress * 100)
+        return percent > 0 ? base + " · \(percent)%" : base
     }
 }

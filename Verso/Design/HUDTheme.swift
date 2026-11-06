@@ -665,9 +665,11 @@ struct Cartridge: View {
             Text(meta).hudText(.meta).foregroundStyle(HUD.fg1).lineLimit(1)
             HStack(spacing: 8) {
                 CellBar(progress: progress, cells: 20)
-                Text(String(format: "%03d%%", Int(progress * 100)))
-                    .hudText(.meta)
-                    .foregroundStyle(HUD.fg1)
+                if progress > 0 {
+                    Text(String(format: "%03d%%", Int(progress * 100)))
+                        .hudText(.meta)
+                        .foregroundStyle(HUD.fg1)
+                }
             }
         }
         .padding(12)

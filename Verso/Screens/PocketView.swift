@@ -175,10 +175,14 @@ struct LiveStrip: View {
         case .book:
             if engine.reader.document?.id == document.id {
                 let reader = engine.reader
-                return "▶ READ CH \(Self.pad2(reader.chapterIndex + 1)) · ~\(max(0, reader.minutesLeft)) MIN LEFT · \(reader.progressPermille / 10)%"
+                let base = "▶ READ CH \(Self.pad2(reader.chapterIndex + 1)) · ~\(max(0, reader.minutesLeft)) MIN LEFT"
+                let percent = reader.progressPermille / 10
+                return percent > 0 ? base + " · \(percent)%" : base
             }
             let minutes = Int(ceil(max(0, document.estimatedSecondsLeft) / 60))
-            return "▶ READ CH \(Self.pad2(document.chapterIndex + 1)) · ~\(minutes) MIN LEFT · \(Int(document.progress * 100))%"
+            let base = "▶ READ CH \(Self.pad2(document.chapterIndex + 1)) · ~\(minutes) MIN LEFT"
+            let percent = Int(document.progress * 100)
+            return percent > 0 ? base + " · \(percent)%" : base
         }
     }
 
