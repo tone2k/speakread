@@ -85,9 +85,14 @@ extension GeometryProxy {
     }
 }
 
-/// Two views on either side of the fold, with the gutter drawn as the spine.
+/// Two views on either side of the fold. The gutter is the calibrated
+/// seam; on a vertical seam the signal trace runs down it to the line
+/// being read (`traceY`, in spread coordinates; the stub points toward
+/// the pane holding the line).
 struct Spread<Leading: View, Trailing: View>: View {
     let fold: Fold
+    var traceY: CGFloat?
+    var traceLeading: Bool = true
     @ViewBuilder var leading: Leading
     @ViewBuilder var trailing: Trailing
 
@@ -95,14 +100,17 @@ struct Spread<Leading: View, Trailing: View>: View {
         if fold.pose.foldIsVertical, fold.frame != nil {
             HStack(spacing: 0) {
                 leading.frame(width: fold.leadingWidth)
-                SpineGutter(axis: .vertical, isActive: fold.pose.foldIsActive)
-                    .frame(width: fold.gutterWidth)
+                ZStack {
+                    Seam(axis: .vertical, isActive: fold.pose.foldIsActive)
+                    SeamTrace(lineMidY: traceY, stubLeading: traceLeading)
+                }
+                .frame(width: fold.gutterWidth)
                 trailing.frame(width: fold.trailingWidth)
             }
         } else if fold.frame != nil {
             VStack(spacing: 0) {
                 leading.frame(height: fold.topHeight)
-                SpineGutter(axis: .horizontal, isActive: fold.pose.foldIsActive)
+                Seam(axis: .horizontal, isActive: fold.pose.foldIsActive)
                     .frame(height: fold.gutterHeight)
                 trailing.frame(height: fold.bottomHeight)
             }
@@ -112,21 +120,5 @@ struct Spread<Leading: View, Trailing: View>: View {
                 trailing
             }
         }
-    }
-}
-
-/// The soft shadow in the gutter. Deeper when the device is partly folded.
-struct SpineGutter: View {
-    let axis: Axis
-    let isActive: Bool
-
-    var body: some View {
-        let depth = isActive ? 0.16 : 0.10
-        LinearGradient(
-            colors: [Theme.ink.opacity(0), Theme.ink.opacity(depth * 0.5), Theme.ink.opacity(depth), Theme.ink.opacity(depth * 0.5), Theme.ink.opacity(0)],
-            startPoint: axis == .vertical ? .leading : .top,
-            endPoint: axis == .vertical ? .trailing : .bottom
-        )
-        .allowsHitTesting(false)
     }
 }

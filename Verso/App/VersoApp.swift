@@ -18,7 +18,7 @@ struct VersoApp: App {
         WindowGroup {
             RootView()
                 .environment(Engine.shared)
-                .tint(Theme.ribbon)
+                .tint(HUD.signal)
                 .onOpenURL { url in
                     Task { await Engine.shared.importFile(at: url) }
                 }

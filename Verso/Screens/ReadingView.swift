@@ -9,9 +9,16 @@ struct ReadingView: View {
     @Bindable var document: Document
 
     @State private var fontSize: CGFloat = 19
+    @State private var showsTextSize = false
     @State private var showsNightstand = false
     @State private var showsNotes = false
     @State private var spreadPair: Int?
+    /// The seam trace's Y in spread coordinates, reported by whichever
+    /// page currently holds the spoken line.
+    @State private var seamTraceY: CGFloat?
+    /// Pagination is measured once per (chapter, size bucket, font size)
+    /// instead of once per spoken word (P14).
+    @State private var paginationCache = PaginationCache()
 
     private var reader: Reader { engine.reader }
 
@@ -32,9 +39,9 @@ struct ReadingView: View {
                     }
                 }
             }
-            .animation(.smooth, value: fold)
+            .animation(.smooth(duration: 0.35), value: fold.pose)
         }
-        .paperBackground()
+        .hudGround(grid: false)
         .navigationTitle("")
         .toolbarTitleDisplayMode(.inline)
         .toolbar {
@@ -50,10 +57,10 @@ struct ReadingView: View {
                     .badge(document.notes.count)
             }
             ToolbarItem(placement: .primaryAction) {
-                Menu("Text size", systemImage: "textformat.size") {
-                    Button("Smaller") { fontSize = max(14, fontSize - 2) }
-                    Button("Larger") { fontSize = min(30, fontSize + 2) }
-                }
+                Button("Text size", systemImage: "textformat.size") { showsTextSize = true }
+                    .popover(isPresented: $showsTextSize) {
+                        textSizeControl
+                    }
             }
             ToolbarItem(placement: .primaryAction) {
                 Button("Nightstand", systemImage: "moon") { showsNightstand = true }
@@ -79,60 +86,63 @@ struct ReadingView: View {
     // MARK: Spread
 
     private func spread(fold: Fold) -> some View {
-        let header = 60.0
-        let footer = 48.0
-        let pageSize = CGSize(width: max(100, fold.leadingWidth - 96), height: max(100, fold.size.height - header - footer - 48))
-        let pagination = Pagination(text: reader.text, pageSize: pageSize, fontSize: fontSize)
+        let pageSize = CGSize(width: max(100, fold.leadingWidth - 56), height: max(100, fold.size.height - 132))
+        let pagination = paginationCache.pagination(for: reader.text, pageSize: pageSize, fontSize: fontSize, chapter: reader.chapterIndex)
         let currentPage = pagination.page(containing: reader.currentIndex ?? 0)
         let pair = spreadPair ?? currentPage / 2
         let left = pair * 2
         let right = left + 1
         let noted = notedSpans
 
-        return Spread(fold: fold) {
+        return Spread(fold: fold, traceY: reader.isSpeaking ? seamTraceY : nil, traceLeading: currentPage == left) {
             BookPage(
                 spans: reader.text.spans[pagination.range(ofPage: left)],
                 currentIndex: reader.currentIndex,
                 noted: noted,
                 header: document.title.uppercased(),
                 headerTrailing: document.author,
-                footer: "\(left + 1)",
-                footerTrailing: "\(Int(document.progress * 100))%",
+                footer: String(format: "P.%03d", left + 1),
+                footerTrailing: String(format: "%03d%%", reader.progressPermille / 10),
                 fontSize: fontSize,
                 edge: .leading,
-                onTap: { reader.play(from: $0) }
+                onTap: { reader.play(from: $0) },
+                onLineMidY: { y in
+                    if currentPage == left {
+                        let value = y.map { $0 + BookPage.textTopInset }
+                        DispatchQueue.main.async { seamTraceY = value }
+                    }
+                }
             )
         } trailing: {
             BookPage(
                 spans: reader.text.spans[pagination.range(ofPage: right)],
                 currentIndex: reader.currentIndex,
                 noted: noted,
-                header: chapterTitle.uppercased(),
+                header: "CH \(String(format: "%02d", reader.chapterIndex + 1)) · \(chapterTitle.uppercased())",
                 headerTrailing: "",
                 footer: reader.voice?.name ?? "",
-                footerTrailing: right < pagination.pageCount ? "\(right + 1)" : "",
+                footerTrailing: right < pagination.pageCount ? String(format: "P.%03d", right + 1) : "",
                 fontSize: fontSize,
                 edge: .trailing,
-                onTap: { reader.play(from: $0) }
+                onTap: { reader.play(from: $0) },
+                onLineMidY: { y in
+                    if currentPage == right {
+                        let value = y.map { $0 + BookPage.textTopInset }
+                        DispatchQueue.main.async { seamTraceY = value }
+                    }
+                }
             )
             .overlay(alignment: .bottomLeading) {
                 ReadingTransport(document: document, compact: false)
-                    .padding(.leading, 44)
-                    .padding(.bottom, 44)
+                    .padding(.leading, 32)
+                    .padding(.bottom, 32)
             }
         }
-        .overlay(alignment: .top) {
-            // The ribbon lies on the spine, down to the line being read.
-            if let frame = fold.frame {
-                RibbonTab(width: 12, height: 120)
-                    .offset(x: frame.midX - fold.size.width / 2)
-                    .allowsHitTesting(false)
-            }
-        }
+        .onChange(of: pair) { seamTraceY = nil }
         .gesture(
             DragGesture(minimumDistance: 40).onEnded { value in
                 let pairs = (pagination.pageCount + 1) / 2
-                withAnimation(.easeInOut(duration: 0.25)) {
+                withAnimation(.linear(duration: 0.18)) {
                     if value.translation.width < 0 { spreadPair = min(pair + 1, max(0, pairs - 1)) }
                     else { spreadPair = max(pair - 1, 0) }
                 }
@@ -150,9 +160,9 @@ struct ReadingView: View {
 
     private func lectern(fold: Fold) -> some View {
         let topHeight = fold.frame == nil ? fold.size.height - 140 : fold.topHeight
-        let pageSize = CGSize(width: max(100, fold.size.width - 88), height: max(100, topHeight - 120))
+        let pageSize = CGSize(width: max(100, fold.size.width - 56), height: max(100, topHeight - 132))
         let lecternFont = fontSize + 4
-        let pagination = Pagination(text: reader.text, pageSize: pageSize, fontSize: lecternFont)
+        let pagination = paginationCache.pagination(for: reader.text, pageSize: pageSize, fontSize: lecternFont, chapter: reader.chapterIndex)
         let page = pagination.page(containing: reader.currentIndex ?? 0)
 
         return Group {
@@ -164,7 +174,7 @@ struct ReadingView: View {
                         noted: notedSpans,
                         header: document.title.uppercased(),
                         headerTrailing: chapterTitle,
-                        footer: "\(page + 1) of \(pagination.pageCount)",
+                        footer: "P \(page + 1) / \(pagination.pageCount)",
                         footerTrailing: "",
                         fontSize: lecternFont,
                         edge: .leading,
@@ -205,6 +215,34 @@ struct ReadingView: View {
         reader.chapters.indices.contains(reader.chapterIndex) ? reader.chapters[reader.chapterIndex].title : ""
     }
 
+    /// The reading size, set by slider (Tony's ask: more sizes, smaller
+    /// floor — 10 pt — same 30 pt top, live readout). This is the one
+    /// place the size is set; every pose derives from `fontSize`.
+    private var textSizeControl: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("TEXT SIZE")
+                    .hudText(.label)
+                    .foregroundStyle(HUD.fg1)
+                Spacer()
+                Text("\(Int(fontSize)) PT")
+                    .hudText(.meta)
+                    .foregroundStyle(HUD.fg0)
+            }
+            Slider(value: $fontSize, in: 10...30, step: 1)
+                .tint(HUD.signal)
+                .frame(width: 260)
+            Text("The ribbon lies under the word being read.")
+                .hudText(.body, size: fontSize)
+                .foregroundStyle(HUD.fg0)
+                .lineLimit(2)
+                .frame(width: 260, alignment: .leading)
+        }
+        .padding(16)
+        .presentationBackground(HUD.bg1)
+        .presentationCompactAdaptation(.popover)
+    }
+
     private var notedSpans: Set<Int> {
         Set(document.notes.filter { $0.chapterIndex == reader.chapterIndex }.map(\.spanIndex))
     }
@@ -212,6 +250,11 @@ struct ReadingView: View {
 
 /// One page of a book: running header, the words, page number.
 struct BookPage: View {
+    /// The text begins exactly this far below the page's top edge
+    /// (top padding 24 + header strip 28 + spacing 16). The seam trace
+    /// conversion in ReadingView depends on the constant.
+    static let textTopInset: CGFloat = 24 + 28 + 16
+
     let spans: ArraySlice<TimedSpan>
     let currentIndex: Int?
     var noted: Set<Int> = []
@@ -222,28 +265,33 @@ struct BookPage: View {
     let fontSize: CGFloat
     let edge: HorizontalEdge
     var onTap: ((Int) -> Void)?
+    /// Lock line mid-Y in text coordinates, for the seam trace.
+    var onLineMidY: ((CGFloat?) -> Void)?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            HStack {
-                Text(header).font(Theme.kicker(11)).kerning(1.1).foregroundStyle(Theme.ink2).lineLimit(1)
-                Spacer()
-                Text(headerTrailing).font(Theme.ui(11)).foregroundStyle(Theme.ink2).lineLimit(1)
-            }
-            WordRun(spans: spans, currentIndex: currentIndex, font: Theme.serif(fontSize), color: Theme.ink, onTap: onTap, noted: noted)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-                .clipped()
+        VStack(alignment: .leading, spacing: 16) {
+            PanelHeader(title: header, trailing: headerTrailing.isEmpty ? nil : headerTrailing)
+            TimedTextView(
+                text: TimedText(spans: Array(spans)),
+                currentIndex: currentIndex,
+                indexOffset: spans.startIndex,
+                fontSize: fontSize,
+                noted: noted,
+                onTap: onTap,
+                onLineMidY: onLineMidY
+            )
+            .frame(maxWidth: .infinity, alignment: .topLeading)
             Spacer(minLength: 0)
             HStack {
-                Text(footer).font(Theme.mono(11)).foregroundStyle(Theme.ink2)
+                Text(footer).hudText(.meta).foregroundStyle(HUD.fg1)
                 Spacer()
-                Text(footerTrailing).font(Theme.mono(11)).foregroundStyle(Theme.ink2)
+                Text(footerTrailing).hudText(.meta).foregroundStyle(HUD.fg1)
             }
         }
-        .padding(.leading, edge == .leading ? 52 : 44)
-        .padding(.trailing, edge == .leading ? 44 : 52)
-        .padding(.top, 36)
-        .padding(.bottom, 28)
+        .padding(.leading, edge == .leading ? 32 : 24)
+        .padding(.trailing, edge == .leading ? 24 : 32)
+        .padding(.top, 24)
+        .padding(.bottom, 20)
     }
 }
 
@@ -257,10 +305,10 @@ struct ReadingTransport: View {
     private var reader: Reader { engine.reader }
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: large ? 28 : 8) {
-                Button { reader.skip(-15) } label: { Text("−15").font(Theme.mono(large ? 16 : 12)) }
-                    .buttonStyle(PaperButtonStyle(size: large ? 72 : 44))
+                Button { reader.skip(-15) } label: { Text("−15") }
+                    .buttonStyle(HUDButtonStyle(size: large ? 72 : 44))
                     .accessibilityLabel("Back 15 seconds")
                 Button {
                     if !reader.isSpeaking || reader.isPaused { engine.playReading(document) } else { reader.pause() }
@@ -269,22 +317,24 @@ struct ReadingTransport: View {
                         .font(.system(size: large ? 34 : 18))
                         .contentTransition(.symbolEffect(.replace))
                 }
-                .buttonStyle(PaperButtonStyle(size: large ? 112 : 44, filled: true))
+                .buttonStyle(HUDButtonStyle(size: large ? 112 : 44, primary: true))
                 .accessibilityLabel(reader.isSpeaking && !reader.isPaused ? "Pause" : "Play")
-                Button { reader.skip(15) } label: { Text("+15").font(Theme.mono(large ? 16 : 12)) }
-                    .buttonStyle(PaperButtonStyle(size: large ? 72 : 44))
+                Button { reader.skip(15) } label: { Text("+15") }
+                    .buttonStyle(HUDButtonStyle(size: large ? 72 : 44))
                     .accessibilityLabel("Forward 15 seconds")
                 if !compact {
                     RateMenu()
-                    Text(formatMinutesLeft(reader.secondsLeftInChapter))
-                        .font(Theme.ui(12)).foregroundStyle(Theme.ink2)
+                    Text("~\(reader.minutesLeft) MIN LEFT")
+                        .hudText(.meta)
+                        .foregroundStyle(HUD.fg1)
                         .padding(.trailing, 10)
                         .lineLimit(1)
                 }
             }
-            .padding(6)
-            .background(Capsule().fill(Theme.paper).overlay(Capsule().stroke(Theme.line, lineWidth: 1)))
-            .shadow(color: Theme.ink.opacity(0.10), radius: 12, y: 6)
+            .padding(10)
+            .background(HUD.bg1)
+            .clipShape(Chamfer(cut: 8))
+            .overlay(Chamfer(cut: 8).stroke(HUD.ruleStrong, lineWidth: 1))
 
             if !compact {
                 HoldToNoteButton(large: large)
@@ -306,9 +356,12 @@ struct RateMenu: View {
             }
         } label: {
             Text(String(format: "%.1f×", engine.reader.rateMultiplier))
-                .font(Theme.ui(12, weight: .medium))
-                .foregroundStyle(Theme.ink)
+                .hudText(.meta)
+                .foregroundStyle(HUD.fg0)
                 .frame(minWidth: 44, minHeight: 44)
+                .padding(.horizontal, 6)
+                .overlay(Rectangle().strokeBorder(HUD.rule, lineWidth: 1))
+                .contentShape(Rectangle())
         }
     }
 }
@@ -321,24 +374,22 @@ struct HoldToNoteButton: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: holding ? "waveform" : "mic")
-                .symbolEffect(.variableColor.iterative, isActive: holding)
-            Text(holding ? "Saying a note… let go to keep" : "Hold to say a note")
+            Text(holding ? "REC NOTE · RELEASE TO KEEP" : "● HOLD TO SAY A NOTE")
+                .hudText(.label)
                 .lineLimit(1)
-            if holding {
-                Text(String(engine.recorder.transcript.plain.suffix(40)))
-                    .font(Theme.serif(14))
-                    .foregroundStyle(Theme.ink2)
+            if holding, !engine.recorder.tailText.isEmpty {
+                Text(String(engine.recorder.tailText.suffix(40)))
+                    .hudText(.meta)
                     .lineLimit(1)
             }
+            Spacer(minLength: 0)
         }
-        .font(Theme.ui(large ? 16 : 13, weight: .medium))
-        .foregroundStyle(holding ? .white : Theme.ribbonInk)
+        .foregroundStyle(holding ? HUD.onSignal : HUD.signalInk)
         .padding(.horizontal, 16)
         .frame(minHeight: large ? 64 : 44)
-        .background(Capsule().fill(holding ? Theme.ribbon : Theme.card))
-        .contentShape(Capsule())
-        .animation(.snappy, value: holding)
+        .background(Chamfer(cut: 4).fill(holding ? HUD.signal : HUD.bg1))
+        .overlay(Chamfer(cut: 4).stroke(holding ? HUD.signal : HUD.ruleStrong, lineWidth: 1))
+        .contentShape(Chamfer(cut: 4))
         .sensoryFeedback(.impact(flexibility: .soft), trigger: holding)
         .gesture(
             DragGesture(minimumDistance: 0)
@@ -372,7 +423,8 @@ struct NotesSheet: View {
             List {
                 if notes.isEmpty {
                     Text("No notes yet. Hold the note button while a sentence is read and say what you think.")
-                        .font(Theme.ui(15)).foregroundStyle(Theme.ink2)
+                        .hudText(.body).foregroundStyle(HUD.fg1)
+                        .listRowBackground(HUD.bg1)
                 }
                 ForEach(notes) { note in
                     Button {
@@ -381,14 +433,22 @@ struct NotesSheet: View {
                         dismiss()
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(note.text.isEmpty ? "(no words heard)" : note.text)
-                                .font(Theme.serif(17)).foregroundStyle(Theme.ink)
-                            Text("\(chapterTitle(note.chapterIndex)) · \(note.createdAt.formatted(date: .abbreviated, time: .shortened))")
-                                .font(Theme.ui(12)).foregroundStyle(Theme.ink2)
+                            Text("CH \(String(format: "%02d", note.chapterIndex + 1)) · \(Self.stamp(note.createdAt))")
+                                .hudText(.label)
+                                .foregroundStyle(HUD.fg1)
+                            if note.text.isEmpty {
+                                Text("[NO WORDS HEARD]")
+                                    .hudText(.body)
+                                    .foregroundStyle(HUD.fg2)
+                            } else {
+                                Text(note.text)
+                                    .hudText(.body)
+                                    .foregroundStyle(HUD.fg0)
+                            }
                         }
                         .padding(.vertical, 4)
                     }
-                    .listRowBackground(Theme.paper)
+                    .listRowBackground(HUD.bg1)
                 }
                 .onDelete { offsets in
                     let doomed = offsets.map { notes[$0] }
@@ -400,18 +460,31 @@ struct NotesSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .paperBackground()
-            .navigationTitle("Notes")
+            .background(HUD.bg1)
+            .navigationTitle("Notes · \(notes.count)")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Read my notes back", systemImage: "person.wave.2") {
-                        engine.reader.speakNotes(notes, voice: engine.settings.personalVoice ?? engine.settings.voice)
+                    // 2e #4 (already in the 2b spec): the read-back action
+                    // toggles to STOP while the reader is speaking.
+                    Button(engine.reader.isSpeaking ? "Stop" : "Read notes back", systemImage: engine.reader.isSpeaking ? "stop.fill" : "person.wave.2") {
+                        if engine.reader.isSpeaking {
+                            engine.reader.stop()
+                        } else {
+                            engine.reader.speakNotes(notes, voice: engine.settings.personalVoice ?? engine.settings.voice)
+                        }
                     }
-                    .disabled(notes.isEmpty)
+                    .disabled(notes.isEmpty && !engine.reader.isSpeaking)
                 }
             }
         }
+        .presentationBackground(HUD.bg1)
+    }
+
+    private static func stamp(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd MMM HH:mm"
+        return formatter.string(from: date).uppercased()
     }
 
     private func chapterTitle(_ i: Int) -> String {

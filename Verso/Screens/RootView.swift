@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct RootView: View {
     @Environment(Engine.self) private var engine
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         @Bindable var engine = engine
@@ -35,15 +36,30 @@ struct RootView: View {
         } message: {
             Text(engine.lastError ?? "")
         }
-        // Paper is always light. Nightstand sets its own dark scheme on its subtree.
-        .environment(\.colorScheme, .light)
+        // Appearance is Tony's choice (Settings): HUD tokens resolve per
+        // scheme; Nightstand keeps its red lens in both modes.
+        .preferredColorScheme(engine.settings.appearance.colorScheme)
+        // Save points (P4): backgrounding is one; the rest live in Reader.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { engine.reader.savePosition() }
+        }
+        .onChange(of: engine.path) { engine.refreshContinuing() }
     }
 }
 
 private struct MissingView: View {
     var body: some View {
-        ContentUnavailableView("That item is gone", systemImage: "book.closed")
-            .paperBackground()
+        VStack(alignment: .leading, spacing: 8) {
+            Text("ITEM NOT FOUND")
+                .hudText(.title2)
+                .foregroundStyle(HUD.fg1)
+            Text("It was deleted or moved.")
+                .hudText(.body)
+                .foregroundStyle(HUD.fg2)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(HUD.Space.closedMargin)
+        .hudGround(grid: false)
     }
 }
 
@@ -52,6 +68,10 @@ struct HomeView: View {
     @Environment(Engine.self) private var engine
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var searchText = ""
+    /// Debounced before it reaches the lists (P17): a keystroke must not
+    /// re-filter — and re-fold — the whole library.
+    @State private var debouncedSearch = ""
+    @State private var searchTask: Task<Void, Never>?
     @State private var showsImporter = false
 
     var body: some View {
@@ -59,22 +79,25 @@ struct HomeView: View {
             let fold = proxy.fold(horizontalSizeClass: horizontalSizeClass)
             Group {
                 if fold.pose == .closed {
-                    PocketView(searchText: searchText)
+                    PocketView(searchText: debouncedSearch)
                 } else {
-                    ShelfView(fold: fold, searchText: searchText)
+                    ShelfView(fold: fold, searchText: debouncedSearch)
                 }
             }
-            .animation(.smooth, value: fold)
+            .animation(.smooth(duration: 0.35), value: fold.pose)
         }
-        .paperBackground()
-        .navigationTitle("Verso")
+        .hudGround(grid: true)
+        .onChange(of: searchText) { _, new in
+            searchTask?.cancel()
+            searchTask = Task {
+                try? await Task.sleep(for: .milliseconds(200))
+                if !Task.isCancelled { debouncedSearch = new }
+            }
+        }
+        .navigationTitle("")
         .toolbarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "Search what you said and read")
         .toolbar {
-            ToolbarItem(placement: .topBarPinnedTrailing) {
-                Button("Record", systemImage: "record.circle.fill") { engine.startRecording() }
-                    .tint(Theme.ribbon)
-            }
             ToolbarItem(placement: .primaryAction) {
                 Button("Add a book or audio", systemImage: "plus") { showsImporter = true }
             }
@@ -90,70 +113,87 @@ struct HomeView: View {
         }
         .overlay {
             if engine.isImporting {
-                ProgressView("Reading the file…")
-                    .padding(24)
-                    .background(Theme.card, in: RoundedRectangle(cornerRadius: 16))
+                HStack(spacing: 10) {
+                    Text("IMPORTING")
+                        .hudText(.label)
+                        .foregroundStyle(HUD.fg0)
+                    BlinkDot()
+                    BlinkDot()
+                    BlinkDot()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(HUD.bg1)
+                .clipShape(Chamfer(cut: 8))
+                .overlay(Chamfer(cut: 8).stroke(HUD.ruleStrong, lineWidth: 1))
             }
         }
     }
 }
 
-/// One recording or book in a list.
+/// One recording or book in a list: the HUD DataRow, plus the summary
+/// generation side effect.
 struct DocumentRow: View {
     let document: Document
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(document.title)
-                    .font(Theme.ui(17, weight: .medium))
-                    .foregroundStyle(Theme.ink)
-                    .lineLimit(1)
-                Spacer()
-                Text(trailing)
-                    .font(Theme.mono(13))
-                    .foregroundStyle(Theme.ink2)
-            }
-            Text(document.firstLine)
-                .font(Theme.serif(16))
-                .foregroundStyle(Theme.ink2)
-                .lineLimit(1)
-            Text(subtitle)
-                .font(Theme.ui(12))
-                .foregroundStyle(Theme.ink2)
-        }
-        .padding(.vertical, 14)
-        .overlay(alignment: .top) { Rectangle().fill(Theme.line).frame(height: 1) }
-        .contentShape(Rectangle())
+        DataRow(
+            title: document.title,
+            trailing: trailing,
+            summary: document.summary ?? document.firstLine,
+            meta: meta,
+            progress: progress
+        )
+        .task { Summarizer.generateIfNeeded(for: document) }
     }
 
     private var trailing: String {
         switch document.kind {
         case .recording: return formatTimecode(document.duration)
-        case .book: return "\(Int(document.progress * 100))%"
+        case .book: return String(format: "%03d%%", Int(document.progress * 100))
         }
     }
 
-    private var subtitle: String {
-        var parts: [String] = []
-        if document.kind == .book, !document.author.isEmpty { parts.append(document.author) }
-        parts.append(document.createdAt.formatted(date: .abbreviated, time: .shortened))
+    private var meta: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd MMM HH:mm"
+        var parts = [formatter.string(from: document.createdAt).uppercased()]
         let marks = document.marks.count
-        if marks > 0 { parts.append(marks == 1 ? "1 mark" : "\(marks) marks") }
+        if marks > 0 { parts.append(marks == 1 ? "1 MARK" : "\(marks) MARKS") }
         let notes = document.notes.count
-        if notes > 0 { parts.append(notes == 1 ? "1 note" : "\(notes) notes") }
+        if notes > 0 { parts.append(notes == 1 ? "1 NOTE" : "\(notes) NOTES") }
         return parts.joined(separator: " · ")
+    }
+
+    /// The 20-cell bar appears only under in-progress books (spec 2b).
+    private var progress: Double? {
+        guard document.kind == .book else { return nil }
+        let value = document.progress
+        return value > 0 && value < 1 ? value : nil
     }
 }
 
 extension Document {
+    /// Folded once per query against the cached folded library text
+    /// (P17) — no per-keystroke, per-document chapter scans.
     func matches(_ search: String) -> Bool {
-        let q = search.trimmingCharacters(in: .whitespaces)
+        let q = search.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+            .trimmingCharacters(in: .whitespaces)
         if q.isEmpty { return true }
-        if title.localizedCaseInsensitiveContains(q) || author.localizedCaseInsensitiveContains(q) { return true }
-        switch kind {
-        case .recording: return transcript.plain.localizedCaseInsensitiveContains(q)
-        case .book: return chapters.contains { $0.text.localizedCaseInsensitiveContains(q) }
+        return foldedSearchText.contains(q)
+    }
+}
+
+extension Settings.AppearanceChoice {
+    /// System follows the phone; Light/Dark pin the scheme. HUD tokens
+    /// and Nightstand's red lens behave accordingly (Nightstand never
+    /// adapts — it is red in both).
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
         }
     }
 }

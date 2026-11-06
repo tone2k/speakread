@@ -31,20 +31,78 @@ final class Engine {
     let settings = Settings()
 
     var path: [Route] = []
-    var activity: Activity = .none
+    var activity: Activity = .none {
+        didSet { refreshContinuing() }
+    }
     var lastError: String?
     var isImporting = false
 
     private(set) var context: ModelContext?
 
+    /// The document the continue strip points at, kept current by the
+    /// flows that change it (P16) — the old computed property ran a
+    /// SwiftData fetch inside `PocketView.body` on every render.
+    private(set) var continuingDocument: Document?
+
     func attach(context: ModelContext) {
         self.context = context
-        reader.onProgress = { [weak self] document, chapter, span in
+        reader.onSavePoint = { [weak self] document, chapter, span in
+            // Fires ONLY at save points (pause, stop, chapter change,
+            // jumps, backgrounding), so writing and saving immediately is
+            // cheap — and the stored position is never stale by more than
+            // the current uninterrupted play stretch (P4).
             document.chapterIndex = chapter
             document.spanIndex = span
             try? self?.context?.save()
         }
+        reader.voiceEngine = settings.voiceEngine
+        reader.kokoroVoiceID = settings.kokoroVoice
         seedSampleIfNeeded()
+        #if DEBUG
+        Self.writeVoiceRoster()
+        #endif
+        // Prewarm the Kokoro pipeline shortly after launch when it's the
+        // chosen engine, so the first play tap doesn't pay the load (P8).
+        if settings.voiceEngine == .kokoro {
+            let voice = settings.kokoroVoice
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                _ = await KokoroVoice.shared.prepareIfDownloaded(voice: voice)
+            }
+        }
+    }
+
+    func refreshContinuing() {
+        switch activity {
+        case .reading, .playing, .recording, .none:
+            let candidate = reader.document ?? player.document
+            // Never point the strip at a deleted (or never-inserted)
+            // model: a stale candidate must not resurrect on Pocket.
+            if let candidate, candidate.isDeleted || candidate.modelContext == nil {
+                continuingDocument = nil
+            } else {
+                continuingDocument = candidate
+            }
+        }
+    }
+
+    /// A small diagnostic in the app's Documents folder: every speech voice
+    /// on the device with its quality tier, and the one Verso would pick.
+    /// Readable via devicectl; makes "which voices are actually installed"
+    /// a fact instead of a guess.
+    private static func writeVoiceRoster() {
+        Task.detached(priority: .utility) {
+            let voices = AVSpeechSynthesisVoice.speechVoices()
+            var lines = voices.map { v in
+                let quality = v.quality == .premium ? "premium" : v.quality == .enhanced ? "enhanced" : "default"
+                return "\(quality)\t\(v.language)\t\(v.name)\t\(v.identifier)"
+            }
+            lines.sort()
+            let pickedID = await MainActor.run { Reader.bestDefaultVoice()?.identifier ?? "none" }
+            lines.append("BEST-DEFAULT\t\(pickedID)")
+            guard let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+            try? lines.joined(separator: "\n").write(to: dir.appendingPathComponent("voices.txt"), atomically: true, encoding: .utf8)
+        }
     }
 
     /// Puts one public-domain book on the shelf the first time Verso opens.
@@ -59,18 +117,22 @@ final class Engine {
 
     /// Starts a recording and shows the recording screen. Called from the UI and from Siri.
     func startRecording() {
-        guard !recorder.isRecording else {
+        guard !recorder.isRecording, !recorder.isFinishing else {
             if path.last != .recording { path.append(.recording) }
             return
         }
         if reader.isSpeaking { reader.pause() }
         player.pause()
+        // Optimistic: show the recording screen now. The recorder flips its
+        // own state immediately too; setup finishes behind the transition.
+        activity = .recording
+        if path.last != .recording { path.append(.recording) }
         Task {
             do {
                 try await recorder.start(ears: settings.makeEars(), title: Self.defaultRecordingTitle())
-                activity = .recording
-                if path.last != .recording { path.append(.recording) }
             } catch {
+                activity = .none
+                if path.last == .recording { path.removeLast() }
                 lastError = error.localizedDescription
             }
         }
@@ -78,13 +140,16 @@ final class Engine {
 
     func stopRecording() async {
         guard let context else { return }
+        // Leave the recording screen now; transcription finalizes behind the
+        // transition and the document lands on the shelf when it is ready.
+        activity = .none
+        if path.last == .recording { path.removeLast() }
         let document = await recorder.stop()
         if let document {
             context.insert(document)
             try? context.save()
+            Summarizer.generateIfNeeded(for: document)
         }
-        activity = .none
-        if path.last == .recording { path.removeLast() }
     }
 
     static func defaultRecordingTitle() -> String {
@@ -104,12 +169,14 @@ final class Engine {
             player.load(document)
             path.append(.playback(document.id))
         }
+        refreshContinuing()
     }
 
     func playReading(_ document: Document) {
         if reader.document?.id != document.id { reader.load(document) }
         reader.play()
         activity = .reading(document.id)
+        refreshContinuing()
     }
 
     func document(id: UUID) -> Document? {
@@ -118,13 +185,8 @@ final class Engine {
         return try? context.fetch(descriptor).first
     }
 
-    /// The document the ribbon tab should continue, if any.
-    var continuing: Document? {
-        switch activity {
-        case .reading(let id), .playing(let id): return document(id: id)
-        case .recording, .none: return reader.document ?? player.document
-        }
-    }
+    /// The document the continue strip should continue, if any.
+    var continuing: Document? { continuingDocument }
 
     // MARK: Margin notes
 
@@ -166,6 +228,7 @@ final class Engine {
             let document = try await Importer.importFile(at: url, ears: settings.makeEars())
             context.insert(document)
             try context.save()
+            Summarizer.generateIfNeeded(for: document)
         } catch {
             lastError = error.localizedDescription
         }
@@ -173,11 +236,16 @@ final class Engine {
 
     func delete(_ document: Document) {
         guard let context else { return }
-        if reader.document?.id == document.id { reader.stop() }
+        // Unload, not just stop: Reader.stop() keeps its document, and
+        // refreshContinuing() would re-point the continue strip at the
+        // deleted book — the bug that left deleted books on Pocket.
+        if reader.document?.id == document.id { reader.unload() }
         if player.document?.id == document.id { player.stop() }
         if let name = document.audioFileName { AudioStore.remove(name) }
         context.delete(document)
         try? context.save()
+        if continuingDocument?.id == document.id { continuingDocument = nil }
+        refreshContinuing()
     }
 }
 
@@ -204,11 +272,54 @@ final class Settings {
         }
     }
 
+    enum VoiceEngineChoice: String, CaseIterable, Identifiable {
+        case kokoro
+        case apple
+
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .kokoro: return "Kokoro (on-device)"
+            case .apple: return "Apple voices"
+            }
+        }
+        var subtitle: String {
+            switch self {
+            case .kokoro: return "Neural voice · runs on this iPhone · one-time model download"
+            case .apple: return "Built-in voices · the safe fallback"
+            }
+        }
+    }
+
+    /// Light / dark / follow-the-phone. Mapped to a SwiftUI
+    /// `ColorScheme?` in RootView; HUD tokens resolve per scheme.
+    enum AppearanceChoice: String, CaseIterable, Identifiable {
+        case system, light, dark
+
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .system: return "System"
+            case .light: return "Light"
+            case .dark: return "Dark"
+            }
+        }
+    }
+
+    var appearance: AppearanceChoice {
+        didSet { UserDefaults.standard.set(appearance.rawValue, forKey: "appearance") }
+    }
     var ears: EarsChoice {
         didSet { UserDefaults.standard.set(ears.rawValue, forKey: "ears") }
     }
     var voiceIdentifier: String? {
         didSet { UserDefaults.standard.set(voiceIdentifier, forKey: "voice") }
+    }
+    var voiceEngine: VoiceEngineChoice {
+        didSet { UserDefaults.standard.set(voiceEngine.rawValue, forKey: "voiceEngine") }
+    }
+    var kokoroVoice: String {
+        didSet { UserDefaults.standard.set(kokoroVoice, forKey: "kokoroVoice") }
     }
     var rateMultiplier: Double {
         didSet { UserDefaults.standard.set(rateMultiplier, forKey: "rate") }
@@ -219,8 +330,11 @@ final class Settings {
 
     init() {
         let d = UserDefaults.standard
+        appearance = AppearanceChoice(rawValue: d.string(forKey: "appearance") ?? "") ?? .system
         ears = EarsChoice(rawValue: d.string(forKey: "ears") ?? "") ?? .apple
         voiceIdentifier = d.string(forKey: "voice")
+        voiceEngine = VoiceEngineChoice(rawValue: d.string(forKey: "voiceEngine") ?? "") ?? .apple
+        kokoroVoice = d.string(forKey: "kokoroVoice") ?? KokoroVoice.defaultVoiceID
         let rate = d.double(forKey: "rate")
         rateMultiplier = rate == 0 ? 1.0 : rate
         let sleep = d.integer(forKey: "sleep")

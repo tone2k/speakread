@@ -64,3 +64,30 @@ struct Pagination: Equatable {
         return start..<end
     }
 }
+
+/// A small LRU over Pagination values (P14). Keys bucket the page size
+/// to 8 pt steps so fold jitter and rounding never thrash the cache;
+/// the expensive NSString measurement runs once per key, not per word.
+final class PaginationCache {
+    private var entries: [String: Pagination] = [:]
+    private var order: [String] = []
+
+    func pagination(for text: TimedText, pageSize: CGSize, fontSize: CGFloat, chapter: Int) -> Pagination {
+        let key = [
+            String(chapter),
+            String(Int((pageSize.width / 8).rounded())),
+            String(Int((pageSize.height / 8).rounded())),
+            String(Int(fontSize.rounded())),
+            String(text.spans.count),
+        ].joined(separator: "|")
+        if let hit = entries[key] { return hit }
+        let value = Pagination(text: text, pageSize: pageSize, fontSize: fontSize)
+        entries[key] = value
+        order.append(key)
+        if order.count > 8, let oldest = order.first {
+            order.removeFirst()
+            entries.removeValue(forKey: oldest)
+        }
+        return value
+    }
+}

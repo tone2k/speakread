@@ -1,7 +1,8 @@
 import SwiftUI
 import SwiftData
 
-/// The open phone: Said on the left page, Read on the right, the fold as the spine.
+/// The open phone: Said on the left page, Read on the right, the seam as
+/// the spine. Tall pose: one scroll, Said above Read.
 struct ShelfView: View {
     @Environment(Engine.self) private var engine
     @Query(sort: \Document.createdAt, order: .reverse) private var documents: [Document]
@@ -20,7 +21,7 @@ struct ShelfView: View {
             }
         } else {
             ScrollView {
-                VStack(alignment: .leading, spacing: 36) {
+                LazyVStack(alignment: .leading, spacing: 36) {
                     SaidPage(recordings: recordings, scrolls: false)
                     ReadPage(books: books, columns: max(3, Int(fold.size.width / 170)), scrolls: false)
                 }
@@ -51,17 +52,24 @@ struct SaidPage: View {
     }
 
     var body: some View {
-        let content = VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 14) {
-                Text("Said").font(Theme.serif(42, weight: .medium)).foregroundStyle(Theme.ink)
-                Text(summary).font(Theme.ui(13)).foregroundStyle(Theme.ink2)
-            }
-            .padding(.bottom, 10)
+        let content = LazyVStack(alignment: .leading, spacing: 0) {
+            PanelHeader(title: "A / SAID", trailing: summary)
+                .padding(.bottom, 10)
             if recordings.isEmpty {
                 EmptySide(side: .said)
             }
             ForEach(groups, id: \.0) { group in
-                Text(group.0).kicker().padding(.top, 14).padding(.bottom, 4)
+                HStack(spacing: 10) {
+                    Text(group.0.uppercased())
+                        .hudText(.label)
+                        .foregroundStyle(HUD.fg1)
+                    Rectangle().fill(HUD.rule).frame(height: 1)
+                    Text("\(group.1.count)")
+                        .hudText(.meta)
+                        .foregroundStyle(HUD.fg2)
+                }
+                .padding(.top, 14)
+                .padding(.bottom, 4)
                 ForEach(group.1) { document in
                     Button { engine.open(document) } label: { DocumentRow(document: document) }
                         .buttonStyle(.plain)
@@ -71,7 +79,7 @@ struct SaidPage: View {
                 }
             }
         }
-        .padding(.horizontal, 44)
+        .padding(.horizontal, 32)
         .padding(.vertical, 24)
 
         if scrolls {
@@ -85,8 +93,8 @@ struct SaidPage: View {
         let total = recordings.reduce(0) { $0 + $1.duration }
         let h = Int(total) / 3600
         let m = (Int(total) % 3600) / 60
-        let time = h > 0 ? "\(h) h \(m) min" : "\(m) min"
-        return "\(recordings.count) recordings · \(time)"
+        let time = h > 0 ? "\(h) H \(m) MIN" : "\(m) MIN"
+        return "\(recordings.count) REC · \(time)"
     }
 }
 
@@ -98,45 +106,32 @@ struct ReadPage: View {
 
     var body: some View {
         let continuing = books.first { $0.progress > 0 && $0.progress < 1 }
-        let content = VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline, spacing: 14) {
-                Text("Read").font(Theme.serif(42, weight: .medium)).foregroundStyle(Theme.ink)
-                Text("\(books.count) books · \(books.filter { $0.progress > 0 && $0.progress < 1 }.count) in progress")
-                    .font(Theme.ui(13)).foregroundStyle(Theme.ink2)
-            }
+        let content = LazyVStack(alignment: .leading, spacing: 14) {
+            PanelHeader(title: "B / READ", trailing: "\(books.count) BOOKS · \(books.count { $0.progress > 0 && $0.progress < 1 }) IN PROGRESS")
             if let continuing {
-                Button { engine.open(continuing) } label: {
-                    HStack(spacing: 14) {
-                        CoverThumb(title: continuing.title, progress: continuing.progress, width: 44)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Continue").kicker()
-                            Text(continuing.title).font(Theme.serif(18)).foregroundStyle(Theme.ink).lineLimit(1)
-                            Text("\(chapterTitle(continuing)) · \(formatMinutesLeft(continuing.estimatedSecondsLeft)) · \(Int(continuing.progress * 100))%")
-                                .font(Theme.ui(12)).foregroundStyle(Theme.ink2)
-                        }
-                        Spacer()
-                    }
-                    .padding(14)
-                    .background(Theme.card, in: RoundedRectangle(cornerRadius: 16))
-                    .overlay(alignment: .topTrailing) { RibbonTab(width: 10, height: 44).padding(.trailing, 18) }
-                }
-                .buttonStyle(.plain)
+                continuePanel(continuing)
             }
             if books.isEmpty {
                 EmptySide(side: .read)
             }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: columns), spacing: 12) {
                 ForEach(Array(books.enumerated()), id: \.element.id) { i, book in
-                    Button { engine.open(book) } label: { BookCover(document: book, variant: i % 4) }
-                        .buttonStyle(.plain)
-                        .contextMenu {
-                            Button("Delete", systemImage: "trash", role: .destructive) { engine.delete(book) }
-                        }
+                    Button { engine.open(book) } label: {
+                        Cartridge(
+                            title: book.title,
+                            meta: book.author.isEmpty ? "\(book.chapters.count) CHAPTERS" : book.author,
+                            progress: book.progress,
+                            pattern: Cartridge.Pattern(rawValue: i % 4) ?? .solid
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button("Delete", systemImage: "trash", role: .destructive) { engine.delete(book) }
+                    }
                 }
             }
         }
-        .padding(.leading, 36)
-        .padding(.trailing, 24)
+        .padding(.horizontal, 32)
         .padding(.vertical, 24)
 
         if scrolls {
@@ -146,52 +141,43 @@ struct ReadPage: View {
         }
     }
 
-    private func chapterTitle(_ d: Document) -> String {
-        d.chapters.indices.contains(d.chapterIndex) ? d.chapters[d.chapterIndex].title : "Chapter \(d.chapterIndex + 1)"
-    }
-}
-
-/// A typographic cover. Four paper tints, so a shelf has rhythm without artwork.
-struct BookCover: View {
-    let document: Document
-    let variant: Int
-
-    private var background: Color {
-        switch variant {
-        case 0: return Theme.card
-        case 1: return Theme.ink
-        case 2: return Color(red: 0.812, green: 0.776, blue: 0.706)
-        default: return Theme.night
-        }
-    }
-
-    private var foreground: Color {
-        variant == 1 || variant == 3 ? Theme.nightInk : Theme.ink
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(document.title)
-                .font(Theme.serif(15, weight: .medium))
-                .foregroundStyle(foreground)
-                .lineLimit(3)
-            Text(document.author.isEmpty ? "\(document.chapters.count) chapters" : document.author)
-                .font(Theme.ui(10))
-                .foregroundStyle(foreground.opacity(0.75))
-                .lineLimit(2)
-            Spacer(minLength: 8)
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Rectangle().fill(foreground.opacity(0.25)).frame(height: 2)
-                    Rectangle().fill(Theme.ribbon).frame(width: geo.size.width * document.progress, height: 2)
+    private func continuePanel(_ document: Document) -> some View {
+        Button { engine.open(document) } label: {
+            HStack(spacing: 14) {
+                CartridgeMini(progress: document.progress, width: 44, height: 60)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("CONTINUE")
+                        .hudText(.label)
+                        .foregroundStyle(HUD.signalInk)
+                    Text(document.title)
+                        .hudText(.title3)
+                        .foregroundStyle(HUD.fg0)
+                        .lineLimit(1)
+                    Text(continueMeta(document))
+                        .hudText(.meta)
+                        .foregroundStyle(HUD.fg1)
+                        .lineLimit(1)
                 }
+                Spacer()
             }
-            .frame(height: 2)
+            .padding(14)
+            .background(HUD.bg1)
+            .clipShape(Chamfer(cut: 8))
+            .overlay(Chamfer(cut: 8).stroke(HUD.rule, lineWidth: 1))
+            .overlay(alignment: .leading) {
+                Rectangle().fill(HUD.signal).frame(width: 3).padding(.vertical, 8)
+            }
+            .contentShape(Chamfer(cut: 8))
         }
-        .padding(12)
-        .frame(height: 150)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 6).fill(background))
-        .shadow(color: Theme.ink.opacity(0.10), radius: 8, y: 6)
+        .buttonStyle(.plain)
+    }
+
+    private func continueMeta(_ document: Document) -> String {
+        if engine.reader.document?.id == document.id {
+            let reader = engine.reader
+            return "CH \(String(format: "%02d", reader.chapterIndex + 1)) · ~\(max(0, reader.minutesLeft)) MIN LEFT · \(reader.progressPermille / 10)%"
+        }
+        let minutes = Int(ceil(max(0, document.estimatedSecondsLeft) / 60))
+        return "CH \(String(format: "%02d", document.chapterIndex + 1)) · ~\(minutes) MIN LEFT · \(Int(document.progress * 100))%"
     }
 }

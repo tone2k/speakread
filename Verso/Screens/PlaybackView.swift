@@ -1,8 +1,9 @@
 import SwiftUI
 import SwiftData
 
-/// A finished recording: the transcript with the ribbon under the word being
-/// played. Tap a word and the audio goes there. Open: transcript on the right page.
+/// A finished recording: the transcript as one TextKit view with the
+/// lock under the word being played. Tap a word and the audio goes
+/// there. Open: controls and marks on the left page, transcript right.
 struct PlaybackView: View {
     @Environment(Engine.self) private var engine
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -17,56 +18,57 @@ struct PlaybackView: View {
                 switch fold.pose {
                 case .closed:
                     VStack(alignment: .leading, spacing: 18) {
-                        titleField(size: 28)
+                        titleField
                         transcript(fontSize: 19)
-                        progress
+                        PlaybackProgress(document: document)
                         controls(large: false)
                     }
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, HUD.Space.closedMargin)
                     .padding(.vertical, 16)
                 case .openWide, .book:
                     Spread(fold: fold) {
                         VStack(alignment: .leading, spacing: 18) {
-                            titleField(size: 34)
-                            timecode(size: 48)
-                            progress
+                            PanelHeader(title: "A / PLAYBACK")
+                            titleField
+                            PlaybackTimecode(player: player, style: .display2, smallStyle: .meta)
+                            PlaybackProgress(document: document)
                             marks
                             Spacer(minLength: 0)
                             controls(large: false)
                         }
-                        .padding(.horizontal, 44)
+                        .padding(.horizontal, 32)
                         .padding(.vertical, 24)
                     } trailing: {
                         VStack(alignment: .leading, spacing: 18) {
-                            Text("Transcript").kicker()
+                            PanelHeader(title: "B / TRANSCRIPT")
                             transcript(fontSize: 18)
                         }
-                        .padding(.horizontal, 44)
+                        .padding(.horizontal, 32)
                         .padding(.vertical, 24)
                     }
                 case .laptop, .openTall:
                     Spread(fold: fold) {
                         VStack(alignment: .leading, spacing: 18) {
-                            titleField(size: 28)
+                            titleField
                             transcript(fontSize: 22)
                         }
-                        .padding(.horizontal, 44)
+                        .padding(.horizontal, 32)
                         .padding(.vertical, 24)
                     } trailing: {
                         VStack(alignment: .leading, spacing: 26) {
-                            timecode(size: 64)
-                            progress
+                            PlaybackTimecode(player: player, style: .display0, smallStyle: .title1)
+                            PlaybackProgress(document: document)
                             Spacer(minLength: 0)
                             controls(large: true)
                         }
-                        .padding(.horizontal, 44)
+                        .padding(.horizontal, 32)
                         .padding(.vertical, 36)
                     }
                 }
             }
-            .animation(.smooth, value: fold)
+            .animation(.smooth(duration: 0.35), value: fold.pose)
         }
-        .paperBackground()
+        .hudGround(grid: false)
         .navigationTitle("")
         .toolbarTitleDisplayMode(.inline)
         .toolbar {
@@ -98,61 +100,62 @@ struct PlaybackView: View {
         .onDisappear { player.pause() }
     }
 
-    private func titleField(size: CGFloat) -> some View {
+    private var titleField: some View {
         VStack(alignment: .leading, spacing: 4) {
             TextField("Title", text: $document.title)
-                .font(Theme.serif(size, weight: .medium))
-                .foregroundStyle(Theme.ink)
+                .hudText(.title2)
+                .foregroundStyle(HUD.fg0)
                 .textFieldStyle(.plain)
-            Text("\(document.createdAt.formatted(date: .long, time: .shortened)) · \(formatTimecode(document.duration))")
-                .font(Theme.ui(12)).foregroundStyle(Theme.ink2)
+                .overlay(alignment: .bottom) { Rectangle().fill(HUD.rule).frame(height: 1) }
+            Text("\(Self.stamp(document.createdAt)) · \(formatTimecode(document.duration))")
+                .hudText(.meta)
+                .foregroundStyle(HUD.fg1)
         }
     }
 
-    private func timecode(size: CGFloat) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(formatTimecode(player.currentTime)).font(Theme.mono(size, weight: .medium)).foregroundStyle(Theme.ink).contentTransition(.numericText())
-            Text("/ \(formatTimecode(player.duration))").font(Theme.mono(size * 0.35)).foregroundStyle(Theme.ink2)
-        }
+    private static func stamp(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd MMM yyyy HH:mm"
+        return formatter.string(from: date).uppercased()
     }
 
     private func transcript(fontSize: CGFloat) -> some View {
-        ScrollViewReader { scroller in
-            ScrollView {
-                if player.transcript.isEmpty {
-                    Text("No words were heard in this recording.").font(Theme.ui(15)).foregroundStyle(Theme.ink2)
-                }
-                WordRun(spans: player.transcript.spans[...], currentIndex: player.currentIndex, font: Theme.serif(fontSize), color: Theme.ink, dimBefore: true, onTap: { i in
-                    player.seek(toSpan: i)
-                    if !player.isPlaying { player.play() }
-                })
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .onChange(of: player.currentIndex) { _, new in
-                if let new, new % 40 == 0 { withAnimation { scroller.scrollTo(new, anchor: .center) } }
+        Group {
+            if player.transcript.isEmpty {
+                Text("No words were heard in this recording.")
+                    .hudText(.body)
+                    .foregroundStyle(HUD.fg1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                // One TextKit view (P5); the lock layer follows by rect,
+                // replacing the old per-word views and the every-40-words
+                // scroll jump that skipped whenever the index jumped by 2.
+                TimedTextView(
+                    text: player.transcript,
+                    currentIndex: player.currentIndex,
+                    fontSize: fontSize,
+                    dimBefore: true,
+                    follows: true,
+                    onTap: { i in
+                        player.seek(toSpan: i)
+                        if !player.isPlaying { player.play() }
+                    }
+                )
             }
         }
         .frame(maxHeight: .infinity)
     }
 
-    private var progress: some View {
-        VStack(spacing: 6) {
-            RibbonProgress(progress: player.duration > 0 ? player.currentTime / player.duration : 0) { fraction in
-                player.seek(to: fraction * player.duration)
-            }
-            HStack {
-                Text(formatTimecode(player.currentTime)).font(Theme.mono(12)).foregroundStyle(Theme.ink2)
-                Spacer()
-                Text(formatTimecode(player.duration)).font(Theme.mono(12)).foregroundStyle(Theme.ink2)
-            }
-        }
-    }
-
     private var marks: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Marks").kicker().padding(.bottom, 6)
+            Text("MARKS")
+                .hudText(.label)
+                .foregroundStyle(HUD.fg1)
+                .padding(.bottom, 6)
             if document.marks.isEmpty {
-                Text("No marks.").font(Theme.ui(13)).foregroundStyle(Theme.ink2)
+                Text("No marks.")
+                    .hudText(.body)
+                    .foregroundStyle(HUD.fg1)
             }
             ForEach(document.marks) { mark in
                 Button {
@@ -160,12 +163,18 @@ struct PlaybackView: View {
                     if !player.isPlaying { player.play() }
                 } label: {
                     HStack(spacing: 14) {
-                        Text(formatTimecode(mark.time)).font(Theme.mono(12)).foregroundStyle(Theme.ribbonInk).frame(width: 48, alignment: .leading)
-                        Text(mark.label).font(Theme.ui(15)).foregroundStyle(Theme.ink)
+                        Text("T+" + formatTimecode(mark.time))
+                            .hudText(.meta)
+                            .foregroundStyle(HUD.signalInk)
+                        Text(mark.label)
+                            .hudText(.body)
+                            .foregroundStyle(HUD.fg0)
+                            .lineLimit(1)
                         Spacer()
                     }
-                    .padding(.vertical, 9)
-                    .overlay(alignment: .top) { Rectangle().fill(Theme.line).frame(height: 1) }
+                    .frame(height: 36)
+                    .contentShape(Rectangle())
+                    .overlay(alignment: .bottom) { Rectangle().fill(HUD.rule).frame(height: 1) }
                 }
                 .buttonStyle(.plain)
             }
@@ -175,18 +184,18 @@ struct PlaybackView: View {
     private func controls(large: Bool) -> some View {
         HStack(spacing: large ? 28 : 20) {
             Spacer()
-            Button { player.skip(-15) } label: { Text("−15").font(Theme.mono(large ? 16 : 13)) }
-                .buttonStyle(PaperButtonStyle(size: large ? 72 : 56))
+            Button { player.skip(-15) } label: { Text("−15") }
+                .buttonStyle(HUDButtonStyle(size: large ? 72 : 56))
                 .accessibilityLabel("Back 15 seconds")
             Button { player.toggle() } label: {
                 Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: large ? 34 : 28))
                     .contentTransition(.symbolEffect(.replace))
             }
-            .buttonStyle(PaperButtonStyle(size: large ? 112 : 84, filled: true))
+            .buttonStyle(HUDButtonStyle(size: large ? 112 : 84, primary: true))
             .accessibilityLabel(player.isPlaying ? "Pause" : "Play")
-            Button { player.skip(15) } label: { Text("+15").font(Theme.mono(large ? 16 : 13)) }
-                .buttonStyle(PaperButtonStyle(size: large ? 72 : 56))
+            Button { player.skip(15) } label: { Text("+15") }
+                .buttonStyle(HUDButtonStyle(size: large ? 72 : 56))
                 .accessibilityLabel("Forward 15 seconds")
             Menu {
                 ForEach([0.8, 1.0, 1.2, 1.5, 2.0], id: \.self) { r in
@@ -194,10 +203,64 @@ struct PlaybackView: View {
                 }
             } label: {
                 Text(String(format: "%.1f×", player.rate))
-                    .font(Theme.ui(13, weight: .medium)).foregroundStyle(Theme.ink)
+                    .hudText(.meta)
+                    .foregroundStyle(HUD.fg0)
                     .frame(minWidth: 44, minHeight: 44)
+                    .padding(.horizontal, 6)
+                    .overlay(Rectangle().strokeBorder(HUD.rule, lineWidth: 1))
+                    .contentShape(Rectangle())
             }
             Spacer()
         }
+    }
+}
+
+/// The big clock as a leaf (P2): the 12 Hz player clock re-runs this
+/// view only. No numeric transition (P21).
+struct PlaybackTimecode: View {
+    let player: Player
+    let style: HUDTextStyle
+    let smallStyle: HUDTextStyle
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(formatTimecode(player.currentTime))
+                .hudText(style)
+                .foregroundStyle(HUD.fg0)
+            Text("/ \(formatTimecode(player.duration))")
+                .hudText(smallStyle)
+                .foregroundStyle(HUD.fg1)
+        }
+    }
+}
+
+/// Timeline + end readouts as a leaf, ticks at the marks.
+struct PlaybackProgress: View {
+    @Environment(Engine.self) private var engine
+    let document: Document
+
+    private var player: Player { engine.player }
+
+    var body: some View {
+        VStack(spacing: 2) {
+            HUDTimeline(
+                progress: player.duration > 0 ? player.currentTime / player.duration : 0,
+                ticks: ticks
+            ) { fraction in
+                player.seek(to: fraction * player.duration)
+            }
+            HStack {
+                Text(formatTimecode(player.currentTime))
+                Spacer()
+                Text(formatTimecode(player.duration))
+            }
+            .hudText(.meta)
+            .foregroundStyle(HUD.fg1)
+        }
+    }
+
+    private var ticks: [Double] {
+        guard player.duration > 0 else { return [] }
+        return document.marks.map { $0.time / player.duration }
     }
 }

@@ -1,21 +1,33 @@
 import SwiftUI
 
-/// Listening to a book on the closed phone: the sentence being read, large,
-/// with the ribbon under the spoken word.
+/// Listening to a book on the closed phone: a window of the chapter
+/// around the spoken word, the lock on the current word, transport under
+/// the thumb. The window snaps to sentence starts and moves in steps
+/// (P13) instead of sliding a word at a time.
 struct ListeningView: View {
     @Environment(Engine.self) private var engine
     let document: Document
     var fontSize: CGFloat = 19
 
+    @State private var windowStart = 0
+    @State private var sentenceStarts: [Int] = [0]
+
     private var reader: Reader { engine.reader }
+    private static let windowSize = 64
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 14) {
-                CoverThumb(title: document.title, progress: document.progress)
+                CartridgeMini(progress: document.progress)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(document.title).font(Theme.serif(18)).foregroundStyle(Theme.ink).lineLimit(1)
-                    Text(subtitle).font(Theme.ui(13)).foregroundStyle(Theme.ink2).lineLimit(1)
+                    Text(document.title)
+                        .hudText(.title3)
+                        .foregroundStyle(HUD.fg0)
+                        .lineLimit(1)
+                    Text(subtitle)
+                        .hudText(.meta)
+                        .foregroundStyle(HUD.fg1)
+                        .lineLimit(1)
                 }
                 Spacer()
             }
@@ -24,8 +36,7 @@ struct ListeningView: View {
                 WordRun(
                     spans: window,
                     currentIndex: reader.currentIndex,
-                    font: Theme.serif(fontSize + 7),
-                    color: Theme.ink,
+                    fontSize: fontSize + 5,
                     dimBefore: true,
                     onTap: { reader.play(from: $0) }
                 )
@@ -35,35 +46,25 @@ struct ListeningView: View {
             .scrollIndicators(.hidden)
             .frame(maxHeight: .infinity)
 
-            RibbonProgress(progress: document.progress) { fraction in
-                let i = Int(Double(max(0, reader.text.spans.count - 1)) * fraction)
-                reader.play(from: i)
-            }
-            HStack {
-                Text(formatTimecode(elapsedEstimate)).font(Theme.mono(12)).foregroundStyle(Theme.ink2)
-                Spacer()
-                Text(formatMinutesLeft(reader.secondsLeftInChapter) + " in chapter").font(Theme.mono(12)).foregroundStyle(Theme.ink2)
-                Spacer()
-                Text(formatTimecode(totalEstimate)).font(Theme.mono(12)).foregroundStyle(Theme.ink2)
-            }
-            .padding(.top, 4)
+            ListeningProgress(document: document)
+                .padding(.top, 4)
 
             HStack(spacing: 28) {
                 Spacer()
-                Button { reader.skip(-15) } label: { Text("−15").font(Theme.mono(13)) }
-                    .buttonStyle(PaperButtonStyle(size: 56))
+                Button { reader.skip(-15) } label: { Text("−15") }
+                    .buttonStyle(HUDButtonStyle(size: 56))
                     .accessibilityLabel("Back 15 seconds")
                 Button {
                     if !reader.isSpeaking || reader.isPaused { engine.playReading(document) } else { reader.pause() }
                 } label: {
                     Image(systemName: reader.isSpeaking && !reader.isPaused ? "pause.fill" : "play.fill")
-                        .font(.system(size: 28))
+                        .font(.system(size: 26))
                         .contentTransition(.symbolEffect(.replace))
                 }
-                .buttonStyle(PaperButtonStyle(size: 84, filled: true))
+                .buttonStyle(HUDButtonStyle(size: 84, primary: true))
                 .accessibilityLabel(reader.isSpeaking && !reader.isPaused ? "Pause" : "Play")
-                Button { reader.skip(15) } label: { Text("+15").font(Theme.mono(13)) }
-                    .buttonStyle(PaperButtonStyle(size: 56))
+                Button { reader.skip(15) } label: { Text("+15") }
+                    .buttonStyle(HUDButtonStyle(size: 56))
                     .accessibilityLabel("Forward 15 seconds")
                 Spacer()
             }
@@ -71,36 +72,90 @@ struct ListeningView: View {
 
             HStack {
                 RateMenu()
-                    .padding(.horizontal, 8)
-                    .background(Capsule().stroke(Theme.line, lineWidth: 1))
                 Spacer()
-                Text(reader.voice?.name ?? "Voice")
-                    .font(Theme.ui(13, weight: .medium)).foregroundStyle(Theme.ink)
-                    .frame(minHeight: 40).padding(.horizontal, 14)
-                    .background(Capsule().stroke(Theme.line, lineWidth: 1))
+                Text("VOICE · \((reader.voice?.name ?? "—").uppercased())")
+                    .hudText(.meta)
+                    .foregroundStyle(HUD.fg1)
+                    .frame(minHeight: 44)
+                    .padding(.horizontal, 12)
+                    .overlay(Rectangle().strokeBorder(HUD.rule, lineWidth: 1))
                 Spacer()
                 HoldToNoteButton()
             }
             .padding(.top, 18)
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, HUD.Space.closedMargin)
         .padding(.top, 8)
         .padding(.bottom, 24)
+        .onAppear { rebuildSentenceStarts() }
+        .onChange(of: reader.chapterIndex) {
+            windowStart = 0
+            rebuildSentenceStarts()
+        }
+        .onChange(of: reader.currentIndex) { adjustWindow() }
     }
 
-    /// About two sentences before the spoken word and a few after it.
     private var window: ArraySlice<TimedSpan> {
         let spans = reader.text.spans
         guard !spans.isEmpty else { return spans[...] }
-        let i = min(max(reader.currentIndex ?? 0, 0), spans.count - 1)
-        let start = max(0, i - 24)
-        let end = min(spans.count, i + 40)
+        let start = min(windowStart, spans.count - 1)
+        let end = min(spans.count, start + Self.windowSize)
         return spans[start..<end]
+    }
+
+    private func rebuildSentenceStarts() {
+        let ends = reader.text.sentenceEnds()
+        sentenceStarts = [0] + ends.map { $0 + 1 }.filter { $0 < reader.text.spans.count }
+    }
+
+    /// Snap the window so the current word sits a few words into a
+    /// sentence; move only when it passes two-thirds of the window or
+    /// jumps outside it entirely.
+    private func adjustWindow() {
+        let spans = reader.text.spans
+        guard !spans.isEmpty, let current = reader.currentIndex else { return }
+        let limit = windowStart + (Self.windowSize * 2) / 3
+        guard current > limit || current < windowStart else { return }
+        let target = max(0, current - 8)
+        let snapped = sentenceStarts.last { $0 <= target } ?? 0
+        if snapped != windowStart { windowStart = snapped }
     }
 
     private var subtitle: String {
         let chapter = reader.chapters.indices.contains(reader.chapterIndex) ? reader.chapters[reader.chapterIndex].title : ""
-        return document.author.isEmpty ? chapter : "\(document.author) · \(chapter)"
+        let chapterLabel = "CH \(String(format: "%02d", reader.chapterIndex + 1))"
+        return document.author.isEmpty ? chapterLabel : "\(document.author.uppercased()) · \(chapterLabel)"
+    }
+}
+
+/// Timeline + readouts as a leaf: the word clock re-runs this view only.
+struct ListeningProgress: View {
+    @Environment(Engine.self) private var engine
+    let document: Document
+
+    private var reader: Reader { engine.reader }
+
+    var body: some View {
+        let count = max(1, reader.text.spans.count)
+        let current = reader.currentIndex ?? 0
+        VStack(spacing: 2) {
+            HUDTimeline(progress: Double(current) / Double(count)) { fraction in
+                reader.play(from: Int(fraction * Double(count - 1)))
+            }
+            HStack {
+                Text("~\(formatTimecode(elapsedEstimate))")
+                Spacer()
+                Text("~\(minutesInChapter) MIN IN CH")
+                Spacer()
+                Text("~\(formatTimecode(totalEstimate))")
+            }
+            .hudText(.meta)
+            .foregroundStyle(HUD.fg1)
+        }
+    }
+
+    private var minutesInChapter: Int {
+        Int(ceil(max(0, reader.secondsLeftInChapter) / 60))
     }
 
     private var elapsedEstimate: TimeInterval {

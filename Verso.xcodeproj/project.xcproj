@@ -30,6 +30,7 @@
           "children": [
             { "path": "TimedText.swift", "target-membership": [ "Verso/compile-sources" ] },
             { "path": "Library.swift", "target-membership": [ "Verso/compile-sources" ] },
+            { "path": "Summarizer.swift", "target-membership": [ "Verso/compile-sources" ] },
             { "path": "SampleBook.swift", "target-membership": [ "Verso/compile-sources" ] },
             { "path": "Dialogue.swift", "target-membership": [ "Verso/compile-sources" ] },
           ],
@@ -41,6 +42,7 @@
             { "path": "Recorder.swift", "target-membership": [ "Verso/compile-sources" ] },
             { "path": "Player.swift", "target-membership": [ "Verso/compile-sources" ] },
             { "path": "Reader.swift", "target-membership": [ "Verso/compile-sources" ] },
+            { "path": "KokoroVoice.swift", "target-membership": [ "Verso/compile-sources" ] },
             { "path": "Ears.swift", "target-membership": [ "Verso/compile-sources" ] },
             { "path": "AppleEars.swift", "target-membership": [ "Verso/compile-sources" ] },
             { "path": "ClassicEars.swift", "target-membership": [ "Verso/compile-sources" ] },
@@ -60,14 +62,14 @@
           "children": [
             { "path": "Fold.swift", "target-membership": [ "Verso/compile-sources" ] },
             { "path": "WordFlow.swift", "target-membership": [ "Verso/compile-sources" ] },
+            { "path": "TimedTextView.swift", "target-membership": [ "Verso/compile-sources" ] },
             { "path": "Pagination.swift", "target-membership": [ "Verso/compile-sources" ] },
           ],
         }, {
           "kind": "group",
           "path": "Design",
           "children": [
-            { "path": "Theme.swift", "target-membership": [ "Verso/compile-sources" ] },
-            { "path": "Ribbon.swift", "target-membership": [ "Verso/compile-sources" ] },
+            { "path": "HUDTheme.swift", "target-membership": [ "Verso/compile-sources" ] },
           ],
         }, {
           "kind": "group",
@@ -101,6 +103,13 @@
     { "path": "README.md" },
     { "path": "DESIGN.md" },
   ],
+  "packages": [
+    {
+      "kind": "remote",
+      "repository": "https://github.com/FluidInference/FluidAudio",
+      "version": { "version": "0.18.2" },
+    },
+  ],
   "targets": [
     {
       "name": "Verso",
@@ -110,7 +119,14 @@
       "legacy-provisioning-style": "automatic",
       "build-phases": [
         "compile-sources",
+        "frameworks",
         "resources",
+      ],
+      "dependencies": [
+        { "kind": "package", "package": "FluidAudio", "product-name": "FluidAudio" },
+      ],
+      "package-product-members": [
+        { "package": "FluidAudio", "product-name": "FluidAudio", "build-phase": { "build-phase": "frameworks" } },
       ],
       "build-settings": {
         "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",

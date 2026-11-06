@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Tent pose at night: dark paper, ember red, the chapter, time left, a sleep timer.
-/// A tap anywhere pauses or resumes, so there is nothing to find in the dark.
+/// Tent pose at night: black ground, red lens only — no white, no blue,
+/// no signal orange. A tap anywhere pauses or resumes, so there is
+/// nothing to find in the dark.
 struct NightstandView: View {
     @Environment(Engine.self) private var engine
     let document: Document
@@ -11,32 +12,49 @@ struct NightstandView: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            Theme.night.ignoresSafeArea()
-            RibbonTab(width: 14, height: 96, color: Theme.ember.opacity(0.9))
-                .padding(.leading, 48)
-                .ignoresSafeArea(edges: .top)
+            HUD.Night.bg.ignoresSafeArea()
+
+            // Chapter progress down the leading edge: a 3 pt bar whose
+            // height is the fraction of the chapter read.
+            GeometryReader { geo in
+                Rectangle()
+                    .fill(HUD.Night.n0)
+                    .frame(width: 3, height: geo.size.height * chapterProgress)
+            }
+            .ignoresSafeArea()
 
             HStack(alignment: .top, spacing: 40) {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Nightstand").font(Theme.kicker()).textCase(.uppercase).kerning(1.2).foregroundStyle(Theme.ember.opacity(0.9))
-                    Text(document.title).font(Theme.serif(34)).foregroundStyle(Theme.nightInk).padding(.top, 6).lineLimit(2)
-                    Text(status).font(Theme.ui(15)).foregroundStyle(Theme.nightInk.opacity(0.7)).padding(.top, 6)
+                    Text("NIGHTSTAND")
+                        .hudText(.label)
+                        .foregroundStyle(HUD.Night.n1)
+                    Text(document.title)
+                        .hudText(.title2)
+                        .foregroundStyle(HUD.Night.n0)
+                        .padding(.top, 6)
+                        .lineLimit(2)
+                    Text(status)
+                        .hudText(.title3, size: 15)
+                        .foregroundStyle(HUD.Night.n1)
+                        .padding(.top, 6)
                     Spacer()
-                    RibbonProgress(progress: document.progress, color: Theme.ember, track: Theme.nightInk.opacity(0.18))
+                    NightTrack()
                     HStack {
-                        Text(formatMinutesLeft(reader.secondsLeftInChapter) + " in chapter")
+                        Text("~\(minutesInChapter) MIN IN CH")
                         Spacer()
-                        Text(sleepLabel)
+                        NightSleepReadout()
                     }
-                    .font(Theme.mono(12)).foregroundStyle(Theme.nightInk.opacity(0.6))
+                    .hudText(.body, size: 14)
+                    .foregroundStyle(HUD.Night.n1)
+                    .padding(.top, 6)
                 }
                 .padding(.leading, 36)
 
                 VStack(alignment: .trailing, spacing: 0) {
                     TimelineView(.periodic(from: .now, by: 30)) { context in
                         Text(context.date.formatted(.dateTime.hour().minute()))
-                            .font(Theme.mono(64, weight: .medium))
-                            .foregroundStyle(Theme.nightInk.opacity(0.85))
+                            .hudText(.display1, size: 64)
+                            .foregroundStyle(HUD.Night.n0)
                     }
                     Spacer()
                     Menu {
@@ -45,19 +63,20 @@ struct NightstandView: View {
                         }
                         Button("No sleep timer") { reader.setSleep(minutes: nil) }
                     } label: {
-                        Label("Sleep timer", systemImage: "moon.zzz")
-                            .font(Theme.ui(13, weight: .medium))
-                            .foregroundStyle(Theme.nightInk.opacity(0.8))
+                        Text("SLEEP TIMER")
+                            .hudText(.label)
+                            .foregroundStyle(HUD.Night.n1)
                             .frame(minHeight: 44)
                     }
                     Button { onClose() } label: {
-                        Label("Leave Nightstand", systemImage: "sun.max")
-                            .font(Theme.ui(13, weight: .medium))
-                            .foregroundStyle(Theme.nightInk.opacity(0.8))
+                        Text("EXIT NIGHTSTAND")
+                            .hudText(.label)
+                            .foregroundStyle(HUD.Night.n1)
                             .frame(minHeight: 44)
                     }
-                    Text("Tap anywhere to \(reader.isSpeaking && !reader.isPaused ? "pause" : "resume")")
-                        .font(Theme.ui(12)).foregroundStyle(Theme.nightInk.opacity(0.55))
+                    Text("TAP ANYWHERE TO \(reader.isSpeaking && !reader.isPaused ? "PAUSE" : "RESUME")")
+                        .hudText(.label)
+                        .foregroundStyle(HUD.Night.n1)
                         .padding(.top, 6)
                 }
             }
@@ -68,22 +87,62 @@ struct NightstandView: View {
             if !reader.isSpeaking || reader.isPaused { engine.playReading(document) } else { reader.pause() }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .environment(\.colorScheme, .dark)
         .onAppear {
             if reader.sleepAt == nil { reader.setSleep(minutes: engine.settings.sleepMinutes) }
         }
     }
 
-    private var status: String {
-        let chapter = reader.chapters.indices.contains(reader.chapterIndex) ? reader.chapters[reader.chapterIndex].title : ""
-        let voice = reader.voice?.name ?? "Verso"
-        let state = reader.isSpeaking && !reader.isPaused ? "\(voice) is reading" : "Paused"
-        return "\(chapter) · \(state)"
+    private var chapterProgress: Double {
+        let count = reader.text.spans.count
+        guard count > 0 else { return 0 }
+        return Double((reader.currentIndex ?? 0) + 1) / Double(count)
     }
 
-    private var sleepLabel: String {
-        guard let at = reader.sleepAt else { return "No sleep timer" }
-        let m = max(0, Int(at.timeIntervalSinceNow / 60))
-        return "Sleep in \(m) min"
+    private var minutesInChapter: Int {
+        Int(ceil(max(0, reader.secondsLeftInChapter) / 60))
+    }
+
+    private var status: String {
+        let voice = (reader.voice?.name ?? "Verso").uppercased()
+        let state = reader.isSpeaking && !reader.isPaused ? "READING" : "READING PAUSED"
+        return "CH \(String(format: "%02d", reader.chapterIndex + 1)) · \(voice) \(state)"
+    }
+}
+
+/// The bottom progress track: 2 pt, n2 under n0.
+struct NightTrack: View {
+    @Environment(Engine.self) private var engine
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Rectangle().fill(HUD.Night.n2).frame(height: 2)
+                Rectangle().fill(HUD.Night.n0).frame(width: geo.size.width * fraction, height: 2)
+            }
+        }
+        .frame(height: 2)
+    }
+
+    private var fraction: Double {
+        let reader = engine.reader
+        let count = reader.text.spans.count
+        guard count > 0 else { return 0 }
+        return Double((reader.currentIndex ?? 0) + 1) / Double(count)
+    }
+}
+
+/// The sleep countdown, re-read every minute — the old label read
+/// `sleepAt` once and went stale (bug #5).
+struct NightSleepReadout: View {
+    @Environment(Engine.self) private var engine
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 60)) { _ in
+            if let at = engine.reader.sleepAt {
+                Text("SLEEP T−\(max(0, Int(at.timeIntervalSinceNow / 60))) MIN")
+            } else {
+                Text("NO SLEEP TIMER")
+            }
+        }
     }
 }

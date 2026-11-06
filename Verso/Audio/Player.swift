@@ -47,7 +47,7 @@ final class Player: NSObject, AVAudioPlayerDelegate {
         player.play()
         isPlaying = true
         ticker?.invalidate()
-        ticker = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
+        ticker = Timer.commonScheduled(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }
     }

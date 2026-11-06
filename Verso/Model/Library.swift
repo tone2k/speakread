@@ -23,9 +23,28 @@ final class Document {
     var chapterIndex: Int
     var spanIndex: Int
     var wordCount: Int
+    /// One-sentence summary for list rows; generated on-device, lazily when missing.
+    var summary: String?
 
     @Relationship(deleteRule: .cascade, inverse: \Note.document)
     var notes: [Note] = []
+
+    // Decoded-blob caches live in a plain, non-observed box (P22): the old
+    // @Transient cache properties were WRITTEN by getters during view
+    // reads (observation churn mid-render) and validated by comparing
+    // whole multi-MB blobs. The box trusts the setters — every mutation
+    // in the app goes through them — and decodes at most once per change.
+    @Transient private var cacheBox = DocumentCacheBox()
+
+    private final class DocumentCacheBox {
+        var transcript: TimedText?
+        var chapters: [Chapter]?
+        var marks: [Mark]?
+        /// Span-count prefix sums over the chapters: starts[i] is the span
+        /// index chapter i begins at; the last element is the total (P3).
+        var chapterSpanStarts: [Int]?
+        var foldedSearchText: String?
+    }
 
     init(kind: Kind, title: String, author: String = "", createdAt: Date = .now) {
         self.id = UUID()
@@ -45,24 +64,80 @@ final class Document {
     }
 
     var transcript: TimedText {
-        get { transcriptData.flatMap { try? JSONDecoder().decode(TimedText.self, from: $0) } ?? TimedText() }
+        get {
+            if let cached = cacheBox.transcript { return cached }
+            let value = transcriptData.flatMap { try? JSONDecoder().decode(TimedText.self, from: $0) } ?? TimedText()
+            cacheBox.transcript = value
+            return value
+        }
         set {
             transcriptData = try? JSONEncoder().encode(newValue)
             wordCount = newValue.spans.count
+            cacheBox.transcript = newValue
+            cacheBox.foldedSearchText = nil
         }
     }
 
     var chapters: [Chapter] {
-        get { chaptersData.flatMap { try? JSONDecoder().decode([Chapter].self, from: $0) } ?? [] }
+        get {
+            if let cached = cacheBox.chapters { return cached }
+            let value = chaptersData.flatMap { try? JSONDecoder().decode([Chapter].self, from: $0) } ?? []
+            cacheBox.chapters = value
+            return value
+        }
         set {
             chaptersData = try? JSONEncoder().encode(newValue)
             wordCount = newValue.reduce(0) { $0 + $1.text.split(whereSeparator: { $0.isWhitespace }).count }
+            cacheBox.chapters = newValue
+            cacheBox.chapterSpanStarts = nil
+            cacheBox.foldedSearchText = nil
         }
     }
 
     var marks: [Mark] {
-        get { marksData.flatMap { try? JSONDecoder().decode([Mark].self, from: $0) } ?? [] }
-        set { marksData = try? JSONEncoder().encode(newValue) }
+        get {
+            if let cached = cacheBox.marks { return cached }
+            let value = marksData.flatMap { try? JSONDecoder().decode([Mark].self, from: $0) } ?? []
+            cacheBox.marks = value
+            return value
+        }
+        set {
+            marksData = try? JSONEncoder().encode(newValue)
+            cacheBox.marks = newValue
+        }
+    }
+
+    /// Span-count prefix sums over the chapters (P3): `chapterSpanStarts[i]`
+    /// is the global span index chapter i starts at, and the last element
+    /// is the book's total span count. Built once per chapters change —
+    /// tokenizing exactly as the Reader does, so the counts agree — and
+    /// cached in the box; progress is O(1) after that.
+    var chapterSpanStarts: [Int] {
+        if let cached = cacheBox.chapterSpanStarts { return cached }
+        var starts: [Int] = []
+        var total = 0
+        for chapter in chapters {
+            starts.append(total)
+            total += TimedText.tokenize(chapter.text).spans.count
+        }
+        starts.append(total)
+        cacheBox.chapterSpanStarts = starts
+        return starts
+    }
+
+    /// Title + author + full text, folded once for search (P17).
+    var foldedSearchText: String {
+        if let cached = cacheBox.foldedSearchText { return cached }
+        let raw: String
+        switch kind {
+        case .recording:
+            raw = title + "\n" + author + "\n" + transcript.plain
+        case .book:
+            raw = title + "\n" + author + "\n" + chapters.map(\.text).joined(separator: "\n")
+        }
+        let folded = raw.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current).lowercased()
+        cacheBox.foldedSearchText = folded
+        return folded
     }
 
     /// The characters of a dialogue and their voices. Nil for ordinary books.
@@ -80,10 +155,12 @@ final class Document {
             guard duration > 0, let last = transcript.spans.indices.last, last > 0 else { return 0 }
             return min(1, Double(spanIndex) / Double(last))
         case .book:
-            let chapters = self.chapters
-            guard !chapters.isEmpty, wordCount > 0 else { return 0 }
-            let before = chapters.prefix(chapterIndex).reduce(0) { $0 + $1.text.split(whereSeparator: { $0.isWhitespace }).count }
-            return min(1, Double(before + spanIndex) / Double(wordCount))
+            let starts = chapterSpanStarts
+            guard starts.count > 1 else { return 0 }
+            let total = starts[starts.count - 1]
+            guard total > 0 else { return 0 }
+            let chapter = min(max(chapterIndex, 0), starts.count - 2)
+            return min(1, Double(starts[chapter] + spanIndex) / Double(total))
         }
     }
 
