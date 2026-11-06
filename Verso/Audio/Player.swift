@@ -10,6 +10,7 @@ final class Player: NSObject, AVAudioPlayerDelegate {
     private(set) var isPlaying = false
     var currentTime: TimeInterval = 0
     var duration: TimeInterval = 0
+    private(set) var sampleRate: Double = 48_000
     var currentIndex: Int?
     var transcript = TimedText()
     var rate: Float = 1.0 {
@@ -32,6 +33,7 @@ final class Player: NSObject, AVAudioPlayerDelegate {
             p.prepareToPlay()
             player = p
             duration = p.duration
+            sampleRate = p.format.sampleRate
             let start = transcript.spans.indices.contains(document.spanIndex) ? transcript.spans[document.spanIndex].start : 0
             p.currentTime = start
             currentTime = start

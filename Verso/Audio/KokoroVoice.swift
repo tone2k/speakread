@@ -190,6 +190,8 @@ final class KokoroPlayer {
     var onWord: ((Int) -> Void)?
     var onQueueFinished: (() -> Void)?
     var onError: ((Error) -> Void)?
+    /// The span index audio is scheduled through: how far ahead the buffer runs.
+    var onBuffered: ((Int) -> Void)?
 
     private(set) var isActive = false
     private(set) var isPaused = false
@@ -355,6 +357,7 @@ final class KokoroPlayer {
         timeline.append(Scheduled(startSample: startSample, duration: duration, spanStart: chunk.spanStart, wordOffsets: wordOffsets))
         inFlight += 1
         totalScheduled += 1
+        onBuffered?(chunk.spanStart + chunk.wordWeights.count)
         node.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] in
             Task { @MainActor in self?.noteBufferPlayed(gen: gen) }
         }

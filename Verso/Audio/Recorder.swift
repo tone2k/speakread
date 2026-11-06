@@ -14,6 +14,9 @@ final class Recorder {
     var title = ""
     var elapsed: TimeInterval = 0
     var level: Float = 0
+    /// Frames written so far and the capture rate: the stream readouts.
+    private(set) var sampleCount: Int = 0
+    private(set) var sampleRate: Double = 48_000
     /// Recent levels for the ribbon waveform, oldest first.
     var levels: [Float] = Array(repeating: 0, count: 64)
     var transcript = TimedText()
@@ -54,6 +57,7 @@ final class Recorder {
         self.tailText = ""
         self.marks = []
         self.elapsed = 0
+        self.sampleCount = 0
         self.levels = Array(repeating: 0, count: 64)
         self.isRecording = true
         self.isPaused = false
@@ -132,6 +136,8 @@ final class Recorder {
     private func tick() {
         guard isRecording else { return }
         elapsed = sink.seconds
+        sampleCount = sink.frameCount
+        sampleRate = sink.rate
         let l = sink.level
         level = l
         levels.removeFirst()
@@ -270,6 +276,16 @@ final class CaptureSink: @unchecked Sendable {
     var seconds: TimeInterval {
         lock.lock(); defer { lock.unlock() }
         return Double(frames) / sampleRate
+    }
+
+    var frameCount: Int {
+        lock.lock(); defer { lock.unlock() }
+        return Int(frames)
+    }
+
+    var rate: Double {
+        lock.lock(); defer { lock.unlock() }
+        return sampleRate
     }
 
     /// 0...1, perceptual.

@@ -8,6 +8,8 @@ struct PlaybackView: View {
     @Environment(Engine.self) private var engine
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Bindable var document: Document
+    /// RAW: the transcript as packets instead of prose.
+    @State private var showsRaw = false
 
     private var player: Player { engine.player }
 
@@ -20,6 +22,7 @@ struct PlaybackView: View {
                     VStack(alignment: .leading, spacing: 18) {
                         titleField
                         transcript(fontSize: 19)
+                        PlayerStreamLine(player: player)
                         PlaybackProgress(document: document)
                         controls(large: false)
                     }
@@ -34,6 +37,7 @@ struct PlaybackView: View {
                             PlaybackProgress(document: document)
                             marks
                             Spacer(minLength: 0)
+                            PlayerStreamLine(player: player)
                             controls(large: false)
                         }
                         .padding(.horizontal, 32)
@@ -59,6 +63,7 @@ struct PlaybackView: View {
                             PlaybackTimecode(player: player, style: .display0, smallStyle: .title1)
                             PlaybackProgress(document: document)
                             Spacer(minLength: 0)
+                            PlayerStreamLine(player: player)
                             controls(large: true)
                         }
                         .padding(.horizontal, 32)
@@ -72,6 +77,9 @@ struct PlaybackView: View {
         .navigationTitle("")
         .toolbarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(showsRaw ? "Prose" : "Raw", systemImage: showsRaw ? "text.alignleft" : "number") { showsRaw.toggle() }
+            }
             ToolbarItem(placement: .primaryAction) {
                 ShareLink(item: document.transcript.plain, subject: Text(document.title)) {
                     Label("Share transcript", systemImage: "square.and.arrow.up")
@@ -126,6 +134,11 @@ struct PlaybackView: View {
                     .hudText(.body)
                     .foregroundStyle(HUD.fg1)
                     .frame(maxWidth: .infinity, alignment: .leading)
+            } else if showsRaw {
+                PacketListView(text: player.transcript, currentIndex: player.currentIndex) { i in
+                    player.seek(toSpan: i)
+                    if !player.isPlaying { player.play() }
+                }
             } else {
                 // One TextKit view (P5); the lock layer follows by rect,
                 // replacing the old per-word views and the every-40-words

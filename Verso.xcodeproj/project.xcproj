@@ -71,6 +71,7 @@
           "path": "Design",
           "children": [
             { "path": "HUDTheme.swift", "target-membership": [ "Verso/compile-sources" ] },
+            { "path": "Stream.swift", "target-membership": [ "Verso/compile-sources" ] },
           ],
         }, {
           "kind": "group",

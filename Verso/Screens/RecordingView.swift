@@ -58,6 +58,8 @@ struct RecordingView: View {
                 .padding(.top, 18)
             transcript(fontSize: 20)
                 .padding(.top, 20)
+            RecorderStreamLine(recorder: engine.recorder)
+                .padding(.top, 10)
             controls(stopSize: 84, buttonSize: 52)
                 .padding(.top, 16)
         }
@@ -85,6 +87,7 @@ struct RecordingView: View {
             RecorderScope(recorder: engine.recorder, height: 64)
             marksTable
             Spacer(minLength: 0)
+            RecorderStreamLine(recorder: engine.recorder)
             controls(stopSize: 76, buttonSize: 52)
         }
         .padding(.horizontal, 32)
@@ -120,6 +123,7 @@ struct RecordingView: View {
             }
             RecorderScope(recorder: engine.recorder, height: 80)
             Spacer(minLength: 0)
+            RecorderStreamLine(recorder: engine.recorder)
             controls(stopSize: 112, buttonSize: 64)
         }
         .padding(.horizontal, 32)
@@ -137,9 +141,16 @@ struct RecordingView: View {
             spans.append(TimedSpan(id: spans.count, text: recorder.tailText, start: recorder.elapsed, end: recorder.elapsed, confidence: 0, isFinal: false))
         }
         return ScrollView {
-            WordRun(spans: spans[...], currentIndex: nil, fontSize: fontSize)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 8)
+            VStack(alignment: .leading, spacing: 0) {
+                WordRun(spans: spans[...], currentIndex: nil, fontSize: fontSize)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 8)
+                // The write head: where the next word lands, and how far the
+                // ears run behind the microphone.
+                if !recorder.isPaused {
+                    StreamHead(lagSeconds: recorder.elapsed - (recorder.finalText.spans.last?.end ?? recorder.elapsed))
+                }
+            }
         }
         .defaultScrollAnchor(.bottom)
         .frame(maxHeight: .infinity)

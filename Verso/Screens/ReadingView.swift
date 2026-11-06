@@ -367,6 +367,7 @@ struct ReadingTransport: View {
             .overlay(Chamfer(cut: 8).stroke(HUD.ruleStrong, lineWidth: 1))
 
             if !compact {
+                ReaderStreamLine(reader: reader)
                 HoldToNoteButton(large: large)
             }
         }

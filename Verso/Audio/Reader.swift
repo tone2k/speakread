@@ -27,6 +27,10 @@ final class Reader: NSObject, AVSpeechSynthesizerDelegate {
     /// The speaker label of the turn being read, nil for narration or a book.
     private(set) var currentSpeaker: String?
     var isDialogue: Bool { !turns.isEmpty }
+    /// The span index speech is prepared through: the real buffer ahead of
+    /// the head. Kokoro reports scheduled audio; the Apple path reports the
+    /// enqueued utterances. Changes per sentence, never per word.
+    private(set) var bufferedThrough: Int?
     private(set) var isSpeaking = false
     private(set) var isPaused = false
     var voice: AVSpeechSynthesisVoice?
@@ -198,6 +202,7 @@ final class Reader: NSObject, AVSpeechSynthesizerDelegate {
         totalChunkCount = 0
         finishedChunkCount = 0
         notesLastID = nil
+        bufferedThrough = nil
         let start = min(max(index ?? currentIndex ?? document.spanIndex, 0), text.spans.count - 1)
         currentIndex = start
         isSpeaking = true
@@ -270,6 +275,7 @@ final class Reader: NSObject, AVSpeechSynthesizerDelegate {
             chunkCharBase[id] = offsets.indices.contains(chunk.start) ? offsets[chunk.start] : 0
             chunkGeneration[id] = playGeneration
             enqueuedChunkIDs.append(id)
+            if (bufferedThrough ?? 0) < chunk.end { bufferedThrough = chunk.end }
             synthesizer.speak(utterance)
         }
     }
@@ -340,6 +346,10 @@ final class Reader: NSObject, AVSpeechSynthesizerDelegate {
             guard let self, self.kokoroActive, gen == self.kokoroGeneration else { return }
             self.kokoroActive = false
             self.chapterFinished()
+        }
+        player.onBuffered = { [weak self] through in
+            guard let self, self.kokoroActive, gen == self.kokoroGeneration else { return }
+            if (self.bufferedThrough ?? 0) < through { self.bufferedThrough = through }
         }
         player.onError = { [weak self] _ in
             guard let self, self.kokoroActive, gen == self.kokoroGeneration, self.isSpeaking else { return }
@@ -469,6 +479,7 @@ final class Reader: NSObject, AVSpeechSynthesizerDelegate {
         totalChunkCount = 0
         finishedChunkCount = 0
         notesLastID = nil
+        bufferedThrough = nil
         isSpeaking = false
         isPaused = false
         sleepTimer?.invalidate()

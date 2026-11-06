@@ -54,6 +54,8 @@ struct ListeningView: View {
 
             ListeningProgress(document: document)
                 .padding(.top, 4)
+            ReaderStreamLine(reader: reader)
+                .padding(.top, 8)
 
             HStack(spacing: 28) {
                 Spacer()
