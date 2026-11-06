@@ -48,7 +48,7 @@ struct Cast: Codable, Hashable {
     /// Kokoro voices in the order they are handed to characters: alternating
     /// sex and accent, so the first few characters sound as different as
     /// possible from one another.
-    static let kokoroCastingOrder = ["am_michael", "bf_emma", "af_bella", "bm_george", "af_sky", "am_adam", "bf_isabella", "am_puck", "af_nicole", "bm_lewis", "af_sarah", "af_heart"]
+    static let kokoroCastingOrder = ["am_michael", "bf_emma", "af_bella", "bm_george", "af_sarah", "am_adam", "bf_isabella", "af_nicole", "bm_lewis", "af_heart"]
 
     /// Builds a cast for `speakers`, in order of first appearance.
     /// - `appleVoices`: Apple voice identifiers to spread across the characters, best first.

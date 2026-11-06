@@ -15,6 +15,37 @@ func formatIndex(_ value: Int, digits: Int = 5) -> String {
     return String(repeating: "0", count: max(0, digits - s.count)) + s
 }
 
+/// A horizontal line through the middle of its frame, for dashed strokes.
+struct HLine: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: rect.minX, y: rect.midY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        return p
+    }
+}
+
+/// A page turn as a buffer flush: the new content is revealed from the
+/// leading edge. Pair with `.animation(.linear(duration: 0.18), value:)`.
+struct FlushModifier: ViewModifier {
+    var reveal: CGFloat
+
+    func body(content: Content) -> some View {
+        content.mask(alignment: .leading) {
+            Rectangle().scaleEffect(x: max(0.001, reveal), y: 1, anchor: .leading)
+        }
+    }
+}
+
+extension AnyTransition {
+    static var flush: AnyTransition {
+        .asymmetric(
+            insertion: .modifier(active: FlushModifier(reveal: 0), identity: FlushModifier(reveal: 1)),
+            removal: .opacity
+        )
+    }
+}
+
 /// A data line: fields separated by dots, in label type, under a hairline.
 struct StreamLine: View {
     let fields: [String]
@@ -53,18 +84,25 @@ struct BitMeter: View {
     }
 }
 
-/// The write head at the end of a live transcript: a blinking block and the lag.
-struct StreamHead: View {
-    let lagSeconds: Double
+/// The write head at the end of a live transcript: a blinking block and the
+/// lag between the microphone and the last committed word. A leaf: it is
+/// the only view in the transcript that reads the clock, so the transcript
+/// itself never re-runs at the data rate.
+struct RecorderWriteHead: View {
+    let recorder: Recorder
 
     var body: some View {
-        HStack(spacing: 8) {
-            BlinkDot(size: 10)
-            Text("WRITE HEAD · +\(String(format: "%.1f", max(0, lagSeconds)))S")
-                .hudText(.label)
-                .foregroundStyle(HUD.signalInk)
+        if !recorder.isPaused {
+            let committed = recorder.finalText.spans.last?.end ?? recorder.elapsed
+            let lag = max(0, recorder.elapsed - committed)
+            HStack(spacing: 8) {
+                BlinkDot(size: 10)
+                Text("WRITE HEAD · +\(String(format: "%.1f", lag))S")
+                    .hudText(.label)
+                    .foregroundStyle(HUD.signalInk)
+            }
+            .padding(.top, 6)
         }
-        .padding(.top, 6)
     }
 }
 

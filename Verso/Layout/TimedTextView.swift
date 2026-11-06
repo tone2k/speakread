@@ -24,6 +24,9 @@ struct TimedTextView: UIViewRepresentable {
     var noted: Set<Int> = []
     /// Scrolls internally and keeps the lock in the middle band.
     var follows: Bool = false
+    /// Global index speech is prepared through. Words after the current one
+    /// up to here carry a faint dotted underline: the buffer ahead of the head.
+    var bufferedThrough: Int?
     var onTap: ((Int) -> Void)?
     /// The lock line's mid-Y in text-container coordinates, published only
     /// when the line changes (nil when no word of this text is current).
@@ -94,8 +97,11 @@ struct TimedTextView: UIViewRepresentable {
         private var offsets: [Int] = []
         private var lastLockIndex: Int?
         private var lastDimmedUpTo = 0
+        private var lastBuffered: Range<Int> = 0..<0
         private var lastLineMidY: CGFloat?
         private var knotViews: [UIView] = []
+        private static let bufferUnderline = UIColor(hex: 0xFF5A1F).withAlphaComponent(0.45)
+        private static let bufferStyle = NSUnderlineStyle.single.rawValue | NSUnderlineStyle.patternDot.rawValue
 
         // MARK: Content
 
@@ -124,6 +130,7 @@ struct TimedTextView: UIViewRepresentable {
             }
             textView.attributedText = attributed
             lastDimmedUpTo = 0
+            lastBuffered = 0..<0
             lastLockIndex = nil
             lastLineMidY = nil
             installKnots(in: textView)
@@ -191,6 +198,7 @@ struct TimedTextView: UIViewRepresentable {
                 dimTarget = global! - parent.indexOffset
             }
             updateDimming(in: textView, upTo: dimTarget)
+            updateBuffer(in: textView, count: count)
             guard let current = local else {
                 if lastLockIndex != nil || force {
                     lockView.isHidden = true
@@ -242,6 +250,32 @@ struct TimedTextView: UIViewRepresentable {
             }
             storage.endEditing()
             lastDimmedUpTo = target
+        }
+
+        /// Underlines the words whose audio is already prepared: from just
+        /// after the current word through `bufferedThrough`, clipped to this
+        /// page. Only the difference from the last range is touched, so a
+        /// new sentence costs a handful of attribute edits, never a page.
+        private func updateBuffer(in textView: UITextView, count: Int) {
+            guard let parent else { return }
+            var target: Range<Int> = 0..<0
+            if let through = parent.bufferedThrough, let current = parent.currentIndex, through > current {
+                let lower = min(max(current + 1 - parent.indexOffset, 0), count)
+                let upper = min(max(through + 1 - parent.indexOffset, 0), count)
+                if lower < upper { target = lower..<upper }
+            }
+            guard target != lastBuffered else { return }
+            let storage = textView.textStorage
+            storage.beginEditing()
+            for i in lastBuffered where !target.contains(i) && parent.text.spans.indices.contains(i) {
+                storage.removeAttribute(.underlineStyle, range: range(of: i))
+                storage.removeAttribute(.underlineColor, range: range(of: i))
+            }
+            for i in target where !lastBuffered.contains(i) {
+                storage.addAttributes([.underlineStyle: Self.bufferStyle, .underlineColor: Self.bufferUnderline], range: range(of: i))
+            }
+            storage.endEditing()
+            lastBuffered = target
         }
 
         private func followLock(in textView: UITextView, rect: CGRect) {

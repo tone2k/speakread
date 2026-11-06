@@ -25,6 +25,10 @@ final class Document {
     var wordCount: Int
     /// One-sentence summary for list rows; generated on-device, lazily when missing.
     var summary: String?
+    /// What kind of recording this is (`RecordingKind.rawValue`), once judged.
+    var kindLabel: String?
+    /// A meeting's digest, as JSON. Nil until one is made.
+    var digestData: Data?
 
     @Relationship(deleteRule: .cascade, inverse: \Note.document)
     var notes: [Note] = []
@@ -147,6 +151,17 @@ final class Document {
     }
 
     var isDialogue: Bool { chapters.contains { $0.isDialogue } }
+
+    var digest: MeetingDigest? {
+        get { digestData.flatMap { try? JSONDecoder().decode(MeetingDigest.self, from: $0) } }
+        set { digestData = newValue.flatMap { try? JSONEncoder().encode($0) } }
+    }
+
+    var recordingKind: RecordingKind? {
+        kindLabel.flatMap(RecordingKind.init(rawValue:))
+    }
+
+    var isMeeting: Bool { recordingKind == .meeting }
 
     /// 0...1 through the whole document.
     var progress: Double {

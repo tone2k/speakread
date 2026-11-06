@@ -170,11 +170,61 @@ extension View {
         modifier(HUDTextModifier(style: style, sizeOverride: size))
     }
 
-    /// `bg0` ground, with the 24 pt grid when `grid` is true. Never use the grid under reading text.
+    /// `bg0` ground, with the dither texture when `grid` is true. Never use it under reading text.
     func hudGround(grid: Bool = true) -> some View {
         background {
-            if grid { GridGround() } else { HUD.bg0.ignoresSafeArea() }
+            if grid { DitherGround() } else { HUD.bg0.ignoresSafeArea() }
         }
+    }
+}
+
+// MARK: - Dither ground
+
+/// Sensor noise instead of a grid: a 1-bit dither at about 3 percent, one
+/// device pixel per dot. The tile is drawn once per appearance and scale,
+/// then tiled by the GPU, so the ground costs nothing per frame.
+struct DitherGround: View {
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.displayScale) private var scale
+
+    var body: some View {
+        Image(uiImage: DitherTile.image(dark: scheme == .dark, scale: scale))
+            .resizable(resizingMode: .tile)
+            .background(HUD.bg0)
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
+@MainActor
+enum DitherTile {
+    private static var cache: [String: UIImage] = [:]
+    static let points: CGFloat = 96
+
+    static func image(dark: Bool, scale: CGFloat) -> UIImage {
+        let key = "\(dark ? "d" : "l")-\(scale)"
+        if let cached = cache[key] { return cached }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        format.opaque = false
+        let side = Int(points * scale)
+        let px = 1 / scale
+        let image = UIGraphicsImageRenderer(size: CGSize(width: points, height: points), format: format).image { _ in
+            (dark ? UIColor.white.withAlphaComponent(0.035) : UIColor.black.withAlphaComponent(0.05)).setFill()
+            // A fixed-seed linear congruential generator: the same noise every launch.
+            var state: UInt32 = 0x9E37_79B9
+            for y in 0..<side {
+                for x in 0..<side {
+                    state = state &* 1_664_525 &+ 1_013_904_223
+                    if (state >> 24) < 8 {
+                        UIRectFill(CGRect(x: CGFloat(x) * px, y: CGFloat(y) * px, width: px, height: px))
+                    }
+                }
+            }
+        }
+        cache[key] = image
+        return image
     }
 }
 
@@ -344,6 +394,12 @@ struct Seam: View {
                     ? CGRect(x: mid - tick / 2, y: t, width: tick, height: 1)
                     : CGRect(x: t, y: mid - tick / 2, width: 1, height: tick)
                 ctx.fill(Path(rect), with: .color(color))
+                if major {
+                    // The offset at the major tick, as a hex word: the ruler reads.
+                    let label = Text(formatHex(Int(t), digits: 4)).font(HUD.mono(7)).foregroundStyle(HUD.fg2)
+                    let at = vertical ? CGPoint(x: mid, y: t + 8) : CGPoint(x: t, y: mid - 10)
+                    ctx.draw(label, at: at, anchor: .center)
+                }
                 t += 24
             }
         }
@@ -358,12 +414,15 @@ struct Seam: View {
 struct SeamTrace: View {
     var lineMidY: CGFloat?
     var stubLeading: Bool
+    /// One character in the square, such as the speaker's initial in a dialogue.
+    var glyph: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         GeometryReader { geo in
             if let y = lineMidY {
                 let height = max(1, geo.size.height)
+                let square: CGFloat = glyph == nil ? 6 : 14
                 ZStack(alignment: .top) {
                     Rectangle()
                         .fill(HUD.signal)
@@ -371,11 +430,16 @@ struct SeamTrace: View {
                         .scaleEffect(x: 1, y: min(max(y / height, 0), 1), anchor: .top)
                     Rectangle()
                         .fill(HUD.signal)
-                        .frame(width: 6, height: 6)
+                        .frame(width: square, height: square)
                         .overlay {
-                            Rectangle().fill(HUD.signal).frame(width: 12, height: 2).offset(x: stubLeading ? -9 : 9)
+                            if let glyph {
+                                Text(glyph).font(HUD.mono(9, .semibold)).foregroundStyle(HUD.onSignal)
+                            }
                         }
-                        .offset(y: y - 3)
+                        .overlay {
+                            Rectangle().fill(HUD.signal).frame(width: 12, height: 2).offset(x: stubLeading ? -(square / 2 + 6) : (square / 2 + 6))
+                        }
+                        .offset(y: y - square / 2)
                 }
                 .frame(width: geo.size.width, height: height, alignment: .top)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: y)

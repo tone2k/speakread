@@ -101,10 +101,12 @@ struct WordRun: View {
     var onTap: ((Int) -> Void)?
     /// Spans that carry a margin note. They get a small signal square.
     var noted: Set<Int> = []
+    /// Global index speech is prepared through: those words get a dotted underline.
+    var bufferedThrough: Int?
 
     var body: some View {
         WordRunContent(spans: spans, currentIndex: currentIndex, fontSize: fontSize, color: color,
-                       dimBefore: dimBefore, noted: noted, onTap: onTap)
+                       dimBefore: dimBefore, noted: noted, bufferedThrough: bufferedThrough, onTap: onTap)
             .equatable()
     }
 }
@@ -118,6 +120,7 @@ private struct WordRunContent: View, Equatable {
     let color: Color
     let dimBefore: Bool
     let noted: Set<Int>
+    let bufferedThrough: Int?
     let onTap: ((Int) -> Void)?
 
     static func == (l: Self, r: Self) -> Bool {
@@ -126,6 +129,7 @@ private struct WordRunContent: View, Equatable {
             && l.dimBefore == r.dimBefore
             && l.color == r.color
             && l.noted == r.noted
+            && l.bufferedThrough == r.bufferedThrough
             && l.spans == r.spans   // fast when string storage is shared, which it is between ticks
     }
 
@@ -135,7 +139,8 @@ private struct WordRunContent: View, Equatable {
         WordFlow(lineSpacing: HUD.readLineSpacing(fontSize)) {
             ForEach(spans) { span in
                 Word(span: span, isCurrent: span.id == currentIndex, font: font, color: wordColor(span),
-                     hasNote: noted.contains(span.id), trailingSpace: span.text.hasSuffix(" ") ? space : 0)
+                     hasNote: noted.contains(span.id), trailingSpace: span.text.hasSuffix(" ") ? space : 0,
+                     isBuffered: isBuffered(span.id))
                     .layoutValue(key: MeasureKey.self, value: span.measureKey(fontSize: fontSize))
                     .onTapGesture { onTap?(span.id) }
                     .accessibilityAddTraits(span.id == currentIndex ? [.isSelected] : [])
@@ -149,6 +154,11 @@ private struct WordRunContent: View, Equatable {
         if dimBefore, let currentIndex, span.id < currentIndex { return HUD.fg1 }
         return color
     }
+
+    private func isBuffered(_ id: Int) -> Bool {
+        guard let bufferedThrough, let currentIndex else { return false }
+        return id > currentIndex && id <= bufferedThrough
+    }
 }
 
 struct Word: View {
@@ -158,6 +168,7 @@ struct Word: View {
     let color: Color
     var hasNote: Bool = false
     var trailingSpace: CGFloat = 0
+    var isBuffered: Bool = false
 
     var body: some View {
         Text(span.text)
@@ -168,6 +179,13 @@ struct Word: View {
                     HUD.lockFill
                         .overlay(alignment: .bottom) { HUD.signal.frame(height: 2) }
                         .padding(.trailing, trailingSpace)
+                } else if isBuffered {
+                    // The buffer ahead of the head: a dotted signal underline.
+                    HLine()
+                        .stroke(HUD.signal.opacity(0.45), style: StrokeStyle(lineWidth: 2, dash: [2, 2]))
+                        .frame(height: 2)
+                        .padding(.trailing, trailingSpace)
+                        .frame(maxHeight: .infinity, alignment: .bottom)
                 }
             }
             .overlay(alignment: .topTrailing) {

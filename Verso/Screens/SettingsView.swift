@@ -167,10 +167,10 @@ struct SettingsView: View {
         )
     }
 
-    /// Voices grouped best-first: Premium, Enhanced, Compact. Only tiers
-    /// actually installed on this device get a group.
+    /// Voices grouped best-first: Premium, then Enhanced. Compact voices are
+    /// never offered. Only tiers installed on this device get a group.
     private var voiceGroups: [(title: String, voices: [AVSpeechSynthesisVoice])] {
-        let tiers: [(String, AVSpeechSynthesisVoiceQuality)] = [("Premium", .premium), ("Enhanced", .enhanced), ("Compact", .default)]
+        let tiers: [(String, AVSpeechSynthesisVoiceQuality)] = [("Premium", .premium), ("Enhanced", .enhanced)]
         return tiers.compactMap { title, quality in
             let inTier = voices.filter { $0.quality == quality }
             return inTier.isEmpty ? nil : (title, inTier)
@@ -401,14 +401,14 @@ struct SettingsView: View {
         return parts.joined(separator: " · ")
     }
 
+    /// The ten best natural voices on the phone, plus the Personal Voice if
+    /// there is one (it has its own row). Compact voices are never offered.
     static func voicesForCurrentLanguage() -> [AVSpeechSynthesisVoice] {
         let code = Locale.current.language.languageCode?.identifier ?? "en"
-        return AVSpeechSynthesisVoice.speechVoices()
-            .filter { $0.language.hasPrefix(code) && !$0.voiceTraits.contains(.isNoveltyVoice) }
-            .sorted { a, b in
-                if a.quality != b.quality { return a.quality.rawValue > b.quality.rawValue }
-                return a.name < b.name
-            }
+        let personal = AVSpeechSynthesisVoice.speechVoices().filter {
+            $0.language.hasPrefix(code) && $0.voiceTraits.contains(.isPersonalVoice)
+        }
+        return Reader.castableVoices() + personal
     }
 }
 

@@ -6,6 +6,7 @@ import SwiftData
 struct ReadingView: View {
     @Environment(Engine.self) private var engine
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var document: Document
 
     @State private var fontSize: CGFloat = 19
@@ -111,7 +112,7 @@ struct ReadingView: View {
         let right = left + 1
         let noted = notedSpans
 
-        return Spread(fold: fold, traceY: reader.isSpeaking ? seamTraceY : nil, traceLeading: currentPage == left) {
+        return Spread(fold: fold, traceY: reader.isSpeaking ? seamTraceY : nil, traceLeading: currentPage == left, traceGlyph: speakerName.map { String($0.prefix(1)).uppercased() }) {
             BookPage(
                 spans: reader.text.spans[pagination.range(ofPage: left)],
                 currentIndex: reader.currentIndex,
@@ -128,7 +129,8 @@ struct ReadingView: View {
                         let value = y.map { $0 + BookPage.textTopInset }
                         DispatchQueue.main.async { seamTraceY = value }
                     }
-                }
+                },
+                bufferedThrough: reader.bufferedThrough
             )
         } trailing: {
             BookPage(
@@ -147,7 +149,8 @@ struct ReadingView: View {
                         let value = y.map { $0 + BookPage.textTopInset }
                         DispatchQueue.main.async { seamTraceY = value }
                     }
-                }
+                },
+                bufferedThrough: reader.bufferedThrough
             )
             .overlay(alignment: .bottomLeading) {
                 ReadingTransport(document: document, compact: false)
@@ -166,7 +169,10 @@ struct ReadingView: View {
             }
         )
         .id(pair)
-        .transition(.opacity)
+        // A page turn is a buffer flush: the new spread fills from the
+        // leading edge. Reduce Motion gets a plain cross-fade.
+        .transition(reduceMotion ? .opacity : .flush)
+        .animation(.linear(duration: 0.18), value: pair)
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.6), trigger: pair)
         .onChange(of: currentPage) { _, new in
             if spreadPair != nil, new / 2 != spreadPair { spreadPair = nil }
@@ -195,7 +201,8 @@ struct ReadingView: View {
                         footerTrailing: "",
                         fontSize: lecternFont,
                         edge: .leading,
-                        onTap: { reader.play(from: $0) }
+                        onTap: { reader.play(from: $0) },
+                        bufferedThrough: reader.bufferedThrough
                     )
                 } trailing: {
                     // The stage: in a dialogue the flat half shows the cast,
@@ -296,6 +303,8 @@ struct BookPage: View {
     var onTap: ((Int) -> Void)?
     /// Lock line mid-Y in text coordinates, for the seam trace.
     var onLineMidY: ((CGFloat?) -> Void)?
+    /// Global index speech is prepared through: the buffer ahead of the head.
+    var bufferedThrough: Int?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -306,6 +315,7 @@ struct BookPage: View {
                 indexOffset: spans.startIndex,
                 fontSize: fontSize,
                 noted: noted,
+                bufferedThrough: bufferedThrough,
                 onTap: onTap,
                 onLineMidY: onLineMidY
             )

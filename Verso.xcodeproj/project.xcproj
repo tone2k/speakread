@@ -31,6 +31,7 @@
             { "path": "TimedText.swift", "target-membership": [ "Verso/compile-sources" ] },
             { "path": "Library.swift", "target-membership": [ "Verso/compile-sources" ] },
             { "path": "Summarizer.swift", "target-membership": [ "Verso/compile-sources" ] },
+            { "path": "MeetingDigest.swift", "target-membership": [ "Verso/compile-sources" ] },
             { "path": "SampleBook.swift", "target-membership": [ "Verso/compile-sources" ] },
             { "path": "Dialogue.swift", "target-membership": [ "Verso/compile-sources" ] },
           ],
@@ -87,6 +88,7 @@
             { "path": "PlaybackView.swift", "target-membership": [ "Verso/compile-sources" ] },
             { "path": "SettingsView.swift", "target-membership": [ "Verso/compile-sources" ] },
             { "path": "CastView.swift", "target-membership": [ "Verso/compile-sources" ] },
+            { "path": "DigestView.swift", "target-membership": [ "Verso/compile-sources" ] },
           ],
         }, {
           "kind": "group",

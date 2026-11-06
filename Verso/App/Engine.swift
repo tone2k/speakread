@@ -182,6 +182,7 @@ final class Engine {
             context.insert(document)
             try? context.save()
             Summarizer.generateIfNeeded(for: document)
+            MeetingDigester.shared.detectAndDigestIfNeeded(for: document)
         }
     }
 
@@ -263,6 +264,7 @@ final class Engine {
             context.insert(document)
             try context.save()
             Summarizer.generateIfNeeded(for: document)
+            MeetingDigester.shared.detectAndDigestIfNeeded(for: document)
         } catch {
             lastError = error.localizedDescription
         }

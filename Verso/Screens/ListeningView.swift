@@ -44,7 +44,8 @@ struct ListeningView: View {
                     currentIndex: reader.currentIndex,
                     fontSize: fontSize + 5,
                     dimBefore: true,
-                    onTap: { reader.play(from: $0) }
+                    onTap: { reader.play(from: $0) },
+                    bufferedThrough: reader.bufferedThrough
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, reader.isDialogue ? 12 : 24)

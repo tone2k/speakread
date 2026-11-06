@@ -49,6 +49,10 @@ On the first recording, iOS asks for the microphone and speech recognition. With
 
 Import a dialogue (Plato from Project Gutenberg as `.txt`, or any EPUB or PDF with `SPEAKER:` labels) and Verso casts it: one voice per character, a breath between turns, the speaker's name above the line being read. The Cast sheet lets you recast anyone and hear a line. In laptop pose the flat half becomes a stage with the speaking character lit. Everything runs on the phone. See [docs/dialogues.md](docs/dialogues.md).
 
+### The stream layer
+
+Verso's look is an instrument, so every screen that moves audio shows the data underneath it, not a picture of it. A stream line carries sample counts in hex, span offsets, and the buffer of words whose audio is already prepared ahead of the playhead, reported by the Kokoro scheduler or the Apple utterance window. Buffered words carry a dotted underline in the text. The level shows as eight bits. The live transcript ends in a write head with its lag. Playback has a RAW view: the timed text as packets, tap a row to seek. Page turns reveal from the leading edge like a buffer flush. The ground is a 1-bit dither drawn once and tiled by the GPU. Nothing in this layer runs at the data rate outside a leaf view.
+
 ### Not yet done
 
 - Parakeet, Whisper and SenseVoice engines. The `Ears` protocol is ready for them. Apple's on-device SpeechAnalyzer and classic dictation ship now.

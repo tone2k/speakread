@@ -93,6 +93,8 @@ struct Spread<Leading: View, Trailing: View>: View {
     let fold: Fold
     var traceY: CGFloat?
     var traceLeading: Bool = true
+    /// One character shown in the trace square, such as a speaker's initial.
+    var traceGlyph: String?
     @ViewBuilder var leading: Leading
     @ViewBuilder var trailing: Trailing
 
@@ -102,7 +104,7 @@ struct Spread<Leading: View, Trailing: View>: View {
                 leading.frame(width: fold.leadingWidth)
                 ZStack {
                     Seam(axis: .vertical, isActive: fold.pose.foldIsActive)
-                    SeamTrace(lineMidY: traceY, stubLeading: traceLeading)
+                    SeamTrace(lineMidY: traceY, stubLeading: traceLeading, glyph: traceGlyph)
                 }
                 .frame(width: fold.gutterWidth)
                 trailing.frame(width: fold.trailingWidth)

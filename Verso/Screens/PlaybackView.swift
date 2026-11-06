@@ -8,8 +8,14 @@ struct PlaybackView: View {
     @Environment(Engine.self) private var engine
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Bindable var document: Document
-    /// RAW: the transcript as packets instead of prose.
-    @State private var showsRaw = false
+    /// How the transcript is shown: prose, RAW packets, or the meeting digest.
+    enum Mode: String, CaseIterable {
+        case prose = "PROSE"
+        case raw = "RAW"
+        case digest = "DIGEST"
+    }
+
+    @State private var mode: Mode = .prose
 
     private var player: Player { engine.player }
 
@@ -78,7 +84,13 @@ struct PlaybackView: View {
         .toolbarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button(showsRaw ? "Prose" : "Raw", systemImage: showsRaw ? "text.alignleft" : "number") { showsRaw.toggle() }
+                Menu("View", systemImage: mode == .prose ? "text.alignleft" : mode == .raw ? "number" : "list.bullet.rectangle") {
+                    ForEach(Mode.allCases, id: \.self) { m in
+                        Button { mode = m } label: {
+                            Label(m.rawValue.capitalized, systemImage: m == mode ? "checkmark.square.fill" : "square")
+                        }
+                    }
+                }
             }
             ToolbarItem(placement: .primaryAction) {
                 ShareLink(item: document.transcript.plain, subject: Text(document.title)) {
@@ -104,6 +116,12 @@ struct PlaybackView: View {
         }
         .onAppear {
             if player.document?.id != document.id { player.load(document) }
+            // Open on the digest when this is a known meeting.
+            if document.isMeeting, document.digest != nil { mode = .digest }
+        }
+        .task {
+            // Older recordings that were never judged get judged now.
+            MeetingDigester.shared.detectAndDigestIfNeeded(for: document)
         }
         .onDisappear { player.pause() }
     }
@@ -134,11 +152,13 @@ struct PlaybackView: View {
                     .hudText(.body)
                     .foregroundStyle(HUD.fg1)
                     .frame(maxWidth: .infinity, alignment: .leading)
-            } else if showsRaw {
+            } else if mode == .raw {
                 PacketListView(text: player.transcript, currentIndex: player.currentIndex) { i in
                     player.seek(toSpan: i)
                     if !player.isPlaying { player.play() }
                 }
+            } else if mode == .digest {
+                DigestView(document: document)
             } else {
                 // One TextKit view (P5); the lock layer follows by rect,
                 // replacing the old per-word views and the every-40-words

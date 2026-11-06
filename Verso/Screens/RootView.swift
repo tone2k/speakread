@@ -161,6 +161,8 @@ struct DocumentRow: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "dd MMM HH:mm"
         var parts = [formatter.string(from: document.createdAt).uppercased()]
+        if document.isMeeting { parts.insert(document.digest == nil ? "MEETING" : "MEETING · DIGEST", at: 0) }
+        if document.isDialogue { parts.insert("DIALOGUE", at: 0) }
         let marks = document.marks.count
         if marks > 0 { parts.append(marks == 1 ? "1 MARK" : "\(marks) MARKS") }
         let notes = document.notes.count

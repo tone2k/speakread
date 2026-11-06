@@ -33,16 +33,14 @@ final class KokoroVoice {
     /// the model directory on the main actor on every `Reader.play`.
     private(set) var modelsPresent = false
 
-    /// The Kokoro English voices Verso offers, defaults first.
+    /// The ten Kokoro English voices Verso offers, defaults first.
     static let englishVoices: [(id: String, name: String, detail: String)] = [
         ("af_heart", "Heart", "American · female · Kokoro's default"),
         ("af_bella", "Bella", "American · female"),
         ("af_sarah", "Sarah", "American · female"),
         ("af_nicole", "Nicole", "American · female"),
-        ("af_sky", "Sky", "American · female"),
         ("am_michael", "Michael", "American · male"),
         ("am_adam", "Adam", "American · male"),
-        ("am_puck", "Puck", "American · male"),
         ("bf_emma", "Emma", "British · female"),
         ("bf_isabella", "Isabella", "British · female"),
         ("bm_george", "George", "British · male"),

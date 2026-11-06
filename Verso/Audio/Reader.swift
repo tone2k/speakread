@@ -591,16 +591,22 @@ final class Reader: NSObject, AVSpeechSynthesizerDelegate {
         return computed
     }
 
-    /// Apple voices fit for a cast: the current language, best quality first,
-    /// no novelty voices and not the user's Personal Voice.
+    /// The Apple voices Verso offers: Premium and Enhanced only, the current
+    /// language, no novelty voices, not the user's Personal Voice, at most ten.
     static func castableVoices() -> [AVSpeechSynthesisVoice] {
         let code = Locale.current.language.languageCode?.identifier ?? "en"
-        return AVSpeechSynthesisVoice.speechVoices()
-            .filter { $0.language.hasPrefix(code) && !$0.voiceTraits.contains(.isNoveltyVoice) && !$0.voiceTraits.contains(.isPersonalVoice) }
+        return Array(AVSpeechSynthesisVoice.speechVoices()
+            .filter {
+                $0.language.hasPrefix(code)
+                    && ($0.quality == .premium || $0.quality == .enhanced)
+                    && !$0.voiceTraits.contains(.isNoveltyVoice)
+                    && !$0.voiceTraits.contains(.isPersonalVoice)
+            }
             .sorted { a, b in
                 if a.quality != b.quality { return a.quality.rawValue > b.quality.rawValue }
                 return a.name < b.name
             }
+            .prefix(10))
     }
 
     private static func computeBestDefaultVoice() -> AVSpeechSynthesisVoice? {

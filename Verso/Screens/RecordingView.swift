@@ -138,7 +138,8 @@ struct RecordingView: View {
         let recorder = engine.recorder
         var spans = recorder.finalText.spans
         if !recorder.tailText.isEmpty {
-            spans.append(TimedSpan(id: spans.count, text: recorder.tailText, start: recorder.elapsed, end: recorder.elapsed, confidence: 0, isFinal: false))
+            // The tail's times are never shown: zero keeps this body off the clock.
+            spans.append(TimedSpan(id: spans.count, text: recorder.tailText, start: 0, end: 0, confidence: 0, isFinal: false))
         }
         return ScrollView {
             VStack(alignment: .leading, spacing: 0) {
@@ -146,10 +147,8 @@ struct RecordingView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 8)
                 // The write head: where the next word lands, and how far the
-                // ears run behind the microphone.
-                if !recorder.isPaused {
-                    StreamHead(lagSeconds: recorder.elapsed - (recorder.finalText.spans.last?.end ?? recorder.elapsed))
-                }
+                // ears run behind the microphone. A leaf, so only it ticks.
+                RecorderWriteHead(recorder: recorder)
             }
         }
         .defaultScrollAnchor(.bottom)
