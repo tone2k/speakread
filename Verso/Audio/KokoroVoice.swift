@@ -179,6 +179,12 @@ final class KokoroPlayer {
         var text: String
         var spanStart: Int
         var wordWeights: [Int]
+        /// The Kokoro voice that speaks this chunk. In a dialogue each
+        /// character has one; in a book every chunk uses the reader's.
+        var voice: String
+        var speed: Float
+        /// Silence appended after the chunk: the breath between two speakers.
+        var gapAfter: TimeInterval = 0
     }
 
     var onWord: ((Int) -> Void)?
@@ -218,7 +224,7 @@ final class KokoroPlayer {
 
     // MARK: Control
 
-    func start(chunks: [Chunk], synthesize: @escaping (String) async throws -> [Float]) {
+    func start(chunks: [Chunk], synthesize: @escaping (Chunk) async throws -> [Float]) {
         stop()
         let gen = generation
         isActive = true
@@ -267,12 +273,12 @@ final class KokoroPlayer {
 
     // MARK: The queue
 
-    private func run(chunks: [Chunk], gen: Int, synthesize: @escaping (String) async throws -> [Float]) async {
+    private func run(chunks: [Chunk], gen: Int, synthesize: @escaping (Chunk) async throws -> [Float]) async {
         var prefetch: Task<[Float], Error>?
         func launch(_ i: Int) -> Task<[Float], Error>? {
             guard chunks.indices.contains(i) else { return nil }
-            let text = chunks[i].text
-            return Task { try await synthesize(text) }
+            let chunk = chunks[i]
+            return Task { try await synthesize(chunk) }
         }
         prefetch = launch(0)
         var index = 0
@@ -312,13 +318,20 @@ final class KokoroPlayer {
     }
 
     private func schedule(samples: [Float], chunk: Chunk, gen: Int) {
-        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count)) else { return }
-        buffer.frameLength = AVAudioFrameCount(samples.count)
+        // The breath after a speaker's turn is silence baked into the buffer,
+        // so it pauses and resumes with the audio and never drifts.
+        let gapFrames = Int(max(0, chunk.gapAfter) * format.sampleRate)
+        let totalFrames = samples.count + gapFrames
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(totalFrames)) else { return }
+        buffer.frameLength = AVAudioFrameCount(totalFrames)
         if let channel = buffer.floatChannelData?[0] {
             samples.withUnsafeBufferPointer { source in
                 if let base = source.baseAddress {
                     channel.update(from: base, count: samples.count)
                 }
+            }
+            if gapFrames > 0 {
+                (channel + samples.count).update(repeating: 0, count: gapFrames)
             }
         }
 
@@ -338,7 +351,7 @@ final class KokoroPlayer {
         let anchor = currentSampleTime()
         if timeline.isEmpty { nextStartSample = anchor }
         let startSample = max(nextStartSample, anchor)
-        nextStartSample = startSample + Int64(samples.count)
+        nextStartSample = startSample + Int64(totalFrames)
         timeline.append(Scheduled(startSample: startSample, duration: duration, spanStart: chunk.spanStart, wordOffsets: wordOffsets))
         inFlight += 1
         totalScheduled += 1

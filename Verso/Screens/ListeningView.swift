@@ -32,6 +32,12 @@ struct ListeningView: View {
                 Spacer()
             }
 
+            if reader.isDialogue {
+                SpeakerKicker(name: speakerName ?? "Narrator")
+                    .padding(.top, 18)
+                    .animation(.snappy, value: reader.currentSpeaker)
+            }
+
             ScrollView {
                 WordRun(
                     spans: window,
@@ -41,7 +47,7 @@ struct ListeningView: View {
                     onTap: { reader.play(from: $0) }
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 24)
+                .padding(.vertical, reader.isDialogue ? 12 : 24)
             }
             .scrollIndicators(.hidden)
             .frame(maxHeight: .infinity)
@@ -51,9 +57,9 @@ struct ListeningView: View {
 
             HStack(spacing: 28) {
                 Spacer()
-                Button { reader.skip(-15) } label: { Text("−15") }
+                Button { reader.skipTurn(-1) } label: { Text(reader.isDialogue ? "‹ LINE" : "−15") }
                     .buttonStyle(HUDButtonStyle(size: 56))
-                    .accessibilityLabel("Back 15 seconds")
+                    .accessibilityLabel(reader.isDialogue ? "Previous line" : "Back 15 seconds")
                 Button {
                     if !reader.isSpeaking || reader.isPaused { engine.playReading(document) } else { reader.pause() }
                 } label: {
@@ -63,9 +69,9 @@ struct ListeningView: View {
                 }
                 .buttonStyle(HUDButtonStyle(size: 84, primary: true))
                 .accessibilityLabel(reader.isSpeaking && !reader.isPaused ? "Pause" : "Play")
-                Button { reader.skip(15) } label: { Text("+15") }
+                Button { reader.skipTurn(1) } label: { Text(reader.isDialogue ? "LINE ›" : "+15") }
                     .buttonStyle(HUDButtonStyle(size: 56))
-                    .accessibilityLabel("Forward 15 seconds")
+                    .accessibilityLabel(reader.isDialogue ? "Next line" : "Forward 15 seconds")
                 Spacer()
             }
             .padding(.top, 16)
@@ -119,6 +125,11 @@ struct ListeningView: View {
         let target = max(0, current - 8)
         let snapped = sentenceStarts.last { $0 <= target } ?? 0
         if snapped != windowStart { windowStart = snapped }
+    }
+
+    private var speakerName: String? {
+        guard let speaker = reader.currentSpeaker else { return nil }
+        return reader.member(for: speaker)?.name ?? Cast.displayName(speaker)
     }
 
     private var subtitle: String {

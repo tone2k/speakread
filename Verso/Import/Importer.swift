@@ -15,7 +15,7 @@ enum Importer {
         }
     }
 
-    static let readableTypes: [UTType] = [.epub, .pdf, .audio, .mpeg4Audio, .mp3, .wav, .aiff]
+    static let readableTypes: [UTType] = [.epub, .pdf, .plainText, .text, .audio, .mpeg4Audio, .mp3, .wav, .aiff]
 
     static func importFile(at url: URL, ears: Ears) async throws -> Document {
         let accessing = url.startAccessingSecurityScopedResource()
@@ -23,15 +23,24 @@ enum Importer {
 
         let type = UTType(filenameExtension: url.pathExtension) ?? .data
         if type.conforms(to: .epub) {
-            return try EPUBImporter.importBook(at: url)
+            return book(try EPUBImporter.importBook(at: url))
         }
         if type.conforms(to: .pdf) {
-            return try PDFImporter.importBook(at: url)
+            return book(try PDFImporter.importBook(at: url))
+        }
+        if type.conforms(to: .plainText) || type.conforms(to: .text) || url.pathExtension.lowercased() == "txt" {
+            return book(try TextImporter.importBook(at: url))
         }
         if type.conforms(to: .audio) {
             return try await importAudio(at: url, ears: ears)
         }
         throw ImportError.unsupported(url.pathExtension)
+    }
+
+    /// Every book gets a dialogue pass: chapters with speaker labels become turns.
+    private static func book(_ document: Document) -> Document {
+        document.detectDialogue()
+        return document
     }
 
     private static func importAudio(at url: URL, ears: Ears) async throws -> Document {

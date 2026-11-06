@@ -54,6 +54,7 @@
             { "path": "ZipReader.swift", "target-membership": [ "Verso/compile-sources" ] },
             { "path": "EPUBImporter.swift", "target-membership": [ "Verso/compile-sources" ] },
             { "path": "PDFImporter.swift", "target-membership": [ "Verso/compile-sources" ] },
+            { "path": "TextImporter.swift", "target-membership": [ "Verso/compile-sources" ] },
             { "path": "Importer.swift", "target-membership": [ "Verso/compile-sources" ] },
           ],
         }, {
@@ -84,6 +85,7 @@
             { "path": "NightstandView.swift", "target-membership": [ "Verso/compile-sources" ] },
             { "path": "PlaybackView.swift", "target-membership": [ "Verso/compile-sources" ] },
             { "path": "SettingsView.swift", "target-membership": [ "Verso/compile-sources" ] },
+            { "path": "CastView.swift", "target-membership": [ "Verso/compile-sources" ] },
           ],
         }, {
           "kind": "group",

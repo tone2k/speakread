@@ -12,6 +12,7 @@ struct ReadingView: View {
     @State private var showsTextSize = false
     @State private var showsNightstand = false
     @State private var showsNotes = false
+    @State private var showsCast = false
     @State private var spreadPair: Int?
     /// The seam trace's Y in spread coordinates, reported by whichever
     /// page currently holds the spoken line.
@@ -56,6 +57,11 @@ struct ReadingView: View {
                 Button("Notes", systemImage: "bookmark") { showsNotes = true }
                     .badge(document.notes.count)
             }
+            if document.isDialogue {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Cast", systemImage: "person.2") { showsCast = true }
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button("Text size", systemImage: "textformat.size") { showsTextSize = true }
                     .popover(isPresented: $showsTextSize) {
@@ -75,10 +81,21 @@ struct ReadingView: View {
         .sheet(isPresented: $showsNotes) {
             NotesSheet(document: document)
         }
+        .sheet(isPresented: $showsCast) {
+            CastSheet(document: document)
+        }
         .onAppear {
             if reader.document?.id != document.id { reader.load(document) }
             reader.voice = engine.settings.voice
             reader.rateMultiplier = engine.settings.rateMultiplier
+            // A dialogue shows its cast the first time it is opened.
+            if document.isDialogue {
+                let key = "castSeen-\(document.id.uuidString)"
+                if !UserDefaults.standard.bool(forKey: key) {
+                    UserDefaults.standard.set(true, forKey: key)
+                    showsCast = true
+                }
+            }
         }
         .onChange(of: reader.chapterIndex) { spreadPair = nil }
     }
@@ -119,7 +136,7 @@ struct ReadingView: View {
                 currentIndex: reader.currentIndex,
                 noted: noted,
                 header: "CH \(String(format: "%02d", reader.chapterIndex + 1)) · \(chapterTitle.uppercased())",
-                headerTrailing: "",
+                headerTrailing: speakerName.map { "● \($0.uppercased())" } ?? "",
                 footer: reader.voice?.name ?? "",
                 footerTrailing: right < pagination.pageCount ? String(format: "P.%03d", right + 1) : "",
                 fontSize: fontSize,
@@ -181,9 +198,15 @@ struct ReadingView: View {
                         onTap: { reader.play(from: $0) }
                     )
                 } trailing: {
-                    VStack {
+                    // The stage: in a dialogue the flat half shows the cast,
+                    // with the speaking character lit, above the transport.
+                    VStack(spacing: 24) {
                         Spacer()
-                        ReadingTransport(document: document, compact: false, large: true)
+                        if reader.isDialogue {
+                            CastStrip()
+                                .padding(.horizontal, HUD.Space.paneMargin)
+                        }
+                        ReadingTransport(document: document, compact: false, large: !reader.isDialogue)
                         Spacer()
                     }
                     .frame(maxWidth: .infinity)
@@ -213,6 +236,12 @@ struct ReadingView: View {
 
     private var chapterTitle: String {
         reader.chapters.indices.contains(reader.chapterIndex) ? reader.chapters[reader.chapterIndex].title : ""
+    }
+
+    /// The display name of whoever is speaking, in a dialogue.
+    private var speakerName: String? {
+        guard let speaker = reader.currentSpeaker else { return nil }
+        return reader.member(for: speaker)?.name ?? Cast.displayName(speaker)
     }
 
     /// The reading size, set by slider (Tony's ask: more sizes, smaller
@@ -307,9 +336,10 @@ struct ReadingTransport: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: large ? 28 : 8) {
-                Button { reader.skip(-15) } label: { Text("−15") }
+                // In a dialogue the skip buttons move by line, not by time.
+                Button { reader.skipTurn(-1) } label: { Text(reader.isDialogue ? "‹ LINE" : "−15") }
                     .buttonStyle(HUDButtonStyle(size: large ? 72 : 44))
-                    .accessibilityLabel("Back 15 seconds")
+                    .accessibilityLabel(reader.isDialogue ? "Previous line" : "Back 15 seconds")
                 Button {
                     if !reader.isSpeaking || reader.isPaused { engine.playReading(document) } else { reader.pause() }
                 } label: {
@@ -319,9 +349,9 @@ struct ReadingTransport: View {
                 }
                 .buttonStyle(HUDButtonStyle(size: large ? 112 : 44, primary: true))
                 .accessibilityLabel(reader.isSpeaking && !reader.isPaused ? "Pause" : "Play")
-                Button { reader.skip(15) } label: { Text("+15") }
+                Button { reader.skipTurn(1) } label: { Text(reader.isDialogue ? "LINE ›" : "+15") }
                     .buttonStyle(HUDButtonStyle(size: large ? 72 : 44))
-                    .accessibilityLabel("Forward 15 seconds")
+                    .accessibilityLabel(reader.isDialogue ? "Next line" : "Forward 15 seconds")
                 if !compact {
                     RateMenu()
                     Text("~\(reader.minutesLeft) MIN LEFT")

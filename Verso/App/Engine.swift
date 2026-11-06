@@ -105,12 +105,45 @@ final class Engine {
         }
     }
 
-    /// Puts one public-domain book on the shelf the first time Verso opens.
+    /// Puts one public-domain book and one dialogue on the shelf the first time Verso opens.
     private func seedSampleIfNeeded() {
-        guard let context, !UserDefaults.standard.bool(forKey: SampleBook.seededKey) else { return }
-        context.insert(SampleBook.make())
+        guard let context else { return }
+        if !UserDefaults.standard.bool(forKey: SampleBook.seededKey) {
+            context.insert(SampleBook.make())
+            UserDefaults.standard.set(true, forKey: SampleBook.seededKey)
+        }
+        if !UserDefaults.standard.bool(forKey: SampleBook.dialogueSeededKey) {
+            let dialogue = SampleBook.makeDialogue()
+            dialogue.detectDialogue()
+            assignCastIfNeeded(dialogue)
+            context.insert(dialogue)
+            UserDefaults.standard.set(true, forKey: SampleBook.dialogueSeededKey)
+        }
         try? context.save()
-        UserDefaults.standard.set(true, forKey: SampleBook.seededKey)
+    }
+
+    // MARK: Dialogues
+
+    /// Gives a dialogue its cast: one voice per speaker, the reader's own
+    /// voices for narration. Books that are not dialogues are left alone.
+    func assignCastIfNeeded(_ document: Document) {
+        guard document.kind == .book, document.isDialogue, document.cast == nil else { return }
+        document.cast = Cast.auto(
+            speakers: document.speakers,
+            appleVoices: Reader.castableVoices().map(\.identifier),
+            narratorApple: settings.voice?.identifier,
+            narratorKokoro: settings.kokoroVoice
+        )
+    }
+
+    /// Saves an edited cast and hands it to the reader if the book is open.
+    func updateCast(_ cast: Cast, for document: Document) {
+        document.cast = cast
+        try? context?.save()
+        if reader.document?.id == document.id {
+            reader.cast = cast
+            if reader.isSpeaking, !reader.isPaused { reader.play(from: reader.currentIndex) }
+        }
     }
 
     // MARK: Recording
@@ -226,6 +259,7 @@ final class Engine {
         defer { isImporting = false }
         do {
             let document = try await Importer.importFile(at: url, ears: settings.makeEars())
+            assignCastIfNeeded(document)
             context.insert(document)
             try context.save()
             Summarizer.generateIfNeeded(for: document)

@@ -45,6 +45,10 @@ On the first recording, iOS asks for the microphone and speech recognition. With
 
 `Fold.swift` reads `reservedRegions(kind: .division)` in a `GeometryReader`. An active division means the phone is partly folded: a vertical one is book pose, a horizontal one is laptop pose. An inactive division is the spine of the open phone. Compact width is the closed phone. Every screen switches layout on that one value, and nothing interactive is ever placed inside the division frame.
 
+### Dialogues
+
+Import a dialogue (Plato from Project Gutenberg as `.txt`, or any EPUB or PDF with `SPEAKER:` labels) and Verso casts it: one voice per character, a breath between turns, the speaker's name above the line being read. The Cast sheet lets you recast anyone and hear a line. In laptop pose the flat half becomes a stage with the speaking character lit. Everything runs on the phone. See [docs/dialogues.md](docs/dialogues.md).
+
 ### Not yet done
 
 - Parakeet, Whisper and SenseVoice engines. The `Ears` protocol is ready for them. Apple's on-device SpeechAnalyzer and classic dictation ship now.

@@ -20,6 +20,13 @@ final class Reader: NSObject, AVSpeechSynthesizerDelegate {
     /// progress and time-left for views that must not re-run per word.
     private(set) var progressPermille: Int = 0
     private(set) var minutesLeft: Int = 0
+    /// The characters of a dialogue and their voices. Nil for an ordinary book.
+    var cast: Cast?
+    /// The current chapter's turns. Empty for an ordinary chapter.
+    private(set) var turns: [Turn] = []
+    /// The speaker label of the turn being read, nil for narration or a book.
+    private(set) var currentSpeaker: String?
+    var isDialogue: Bool { !turns.isEmpty }
     private(set) var isSpeaking = false
     private(set) var isPaused = false
     var voice: AVSpeechSynthesisVoice?
@@ -61,9 +68,20 @@ final class Reader: NSObject, AVSpeechSynthesizerDelegate {
     /// cancelled queue from touching the queue that replaced it.
     private var chunkCharBase: [ObjectIdentifier: Int] = [:]
     private var chunkGeneration: [ObjectIdentifier: Int] = [:]
+    /// One unit of speech: a sentence, or less when a turn ends mid-sentence.
+    struct SpeechChunk {
+        var start: Int
+        var end: Int
+        var text: String
+        /// Who says it. Nil for narration or an ordinary book.
+        var speaker: String?
+        /// The last chunk of a turn: a breath follows it.
+        var endsTurn: Bool
+    }
+
     /// Rolling window (P9): never more than three utterances enqueued;
     /// `didFinish` tops the window up from `pendingChunks`.
-    private var pendingChunks: [(start: Int, end: Int, text: String)] = []
+    private var pendingChunks: [SpeechChunk] = []
     private var enqueuedChunkIDs: [ObjectIdentifier] = []
     private var totalChunkCount = 0
     private var finishedChunkCount = 0
@@ -76,6 +94,7 @@ final class Reader: NSObject, AVSpeechSynthesizerDelegate {
         stop()
         self.document = document
         chapters = document.chapters
+        cast = document.cast
         chapterIndex = min(document.chapterIndex, max(0, chapters.count - 1))
         loadChapter(chapterIndex)
         currentIndex = min(document.spanIndex, max(0, text.spans.count - 1))
@@ -88,11 +107,64 @@ final class Reader: NSObject, AVSpeechSynthesizerDelegate {
     private func loadChapter(_ index: Int) {
         guard chapters.indices.contains(index) else {
             text = TimedText()
+            turns = []
             return
         }
+        turns = chapters[index].turns ?? []
         chapterIndex = index
         text = TimedText.tokenize(chapters[index].text)
         offsets = text.characterOffsets()
+    }
+
+    // MARK: Turns
+
+    /// The index into `turns` of the turn being read.
+    var currentTurnIndex: Int? {
+        guard let currentIndex else { return nil }
+        return turns.turnIndex(containing: currentIndex)
+    }
+
+    /// Moves to the start of the next (+1) or previous (−1) turn, across chapters.
+    func skipTurn(_ delta: Int) {
+        guard isDialogue else {
+            skip(delta < 0 ? -15 : 15)
+            return
+        }
+        let current = currentTurnIndex ?? 0
+        let target = current + delta
+        if target < 0 {
+            if chapterIndex > 0 { goToChapter(chapterIndex - 1) } else { jump(to: 0) }
+            return
+        }
+        if target >= turns.count {
+            if chapterIndex < chapters.count - 1 { goToChapter(chapterIndex + 1) }
+            return
+        }
+        jump(to: turns[target].start)
+    }
+
+    /// Jumps to the next line spoken by `speaker`, searching forward from the
+    /// current turn, then from the chapter's start.
+    func jumpToNextTurn(of speaker: String) {
+        guard isDialogue else { return }
+        let from = (currentTurnIndex ?? -1) + 1
+        let ordered = Array(turns[min(from, turns.count)...]) + Array(turns[..<min(from, turns.count)])
+        guard let next = ordered.first(where: { $0.speaker == speaker }) else { return }
+        jump(to: next.start)
+    }
+
+    private func jump(to index: Int) {
+        if isSpeaking && !isPaused {
+            play(from: index)
+        } else {
+            currentIndex = index
+            savePoint()
+        }
+    }
+
+    /// The cast member who speaks `speaker`, with the reader's own voices as the fallback.
+    func member(for speaker: String?) -> CastMember? {
+        cast?.member(for: speaker)
     }
 
     func goToChapter(_ index: Int) {
@@ -141,28 +213,44 @@ final class Reader: NSObject, AVSpeechSynthesizerDelegate {
     /// Sentence-sized chunks over the chapter's spans — one chunk per
     /// utterance on the Apple path, one per synthesized buffer on the
     /// Kokoro path. A whole chapter as a single unit starts slowly and
-    /// reads flat, so both engines work a sentence at a time.
-    private func sentenceChunks(from start: Int) -> [(start: Int, end: Int, text: String)] {
+    /// reads flat, so both engines work a sentence at a time. In a dialogue
+    /// a chunk never crosses a turn, so every chunk has one speaker.
+    private func sentenceChunks(from start: Int) -> [SpeechChunk] {
         let spans = text.spans
-        var chunks: [(start: Int, end: Int, text: String)] = []
+        var chunks: [SpeechChunk] = []
         var i = start
+        var turnCursor = turns.turnIndex(containing: start) ?? 0
         while i < spans.count {
+            // The turn this chunk belongs to, and where it must stop.
+            var speaker: String?
+            var limit = spans.count
+            if !turns.isEmpty {
+                while turnCursor < turns.count, turns[turnCursor].end <= i { turnCursor += 1 }
+                if turnCursor < turns.count {
+                    speaker = turns[turnCursor].speaker
+                    limit = turns[turnCursor].end
+                }
+            }
             var j = i
             var chars = 0
-            while j < spans.count {
+            while j < limit {
                 let piece = spans[j].text
                 chars += piece.count
                 j += 1
                 if Self.endsSentence(piece) || piece.contains("\n") || chars >= 340 || j - i >= 90 { break }
             }
+            if j == i { j = i + 1 }
             let string = spans[i..<j].map(\.text).joined()
             if !string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                chunks.append((start: i, end: j, text: string))
+                chunks.append(SpeechChunk(start: i, end: j, text: string, speaker: speaker, endsTurn: !turns.isEmpty && j >= limit))
             }
             i = j
         }
         return chunks
     }
+
+    /// The breath between two speakers.
+    static let turnGap: TimeInterval = 0.45
 
     private func enqueueSentences(from start: Int) {
         pendingChunks = sentenceChunks(from: start)
@@ -177,7 +265,7 @@ final class Reader: NSObject, AVSpeechSynthesizerDelegate {
     private func refillWindow() {
         while enqueuedChunkIDs.count < 3, !pendingChunks.isEmpty {
             let chunk = pendingChunks.removeFirst()
-            let utterance = makeUtterance(chunk.text)
+            let utterance = makeUtterance(for: chunk)
             let id = ObjectIdentifier(utterance)
             chunkCharBase[id] = offsets.indices.contains(chunk.start) ? offsets[chunk.start] : 0
             chunkGeneration[id] = playGeneration
@@ -214,16 +302,22 @@ final class Reader: NSObject, AVSpeechSynthesizerDelegate {
                 if chars > 60 { break }
             }
             if let split {
-                let head = (start: first.start, end: split, text: spans[first.start..<split].map(\.text).joined())
-                let tail = (start: split, end: first.end, text: spans[split..<first.end].map(\.text).joined())
+                let head = SpeechChunk(start: first.start, end: split, text: spans[first.start..<split].map(\.text).joined(), speaker: first.speaker, endsTurn: false)
+                let tail = SpeechChunk(start: split, end: first.end, text: spans[split..<first.end].map(\.text).joined(), speaker: first.speaker, endsTurn: first.endsTurn)
                 rawChunks.replaceSubrange(0...0, with: [head, tail])
             }
         }
+        let narratorVoice = kokoroVoiceID
+        let baseSpeed = min(max(rateMultiplier, 0.5), 2.0)
         let chunks = rawChunks.map { chunk in
-            KokoroPlayer.Chunk(
+            let who = member(for: chunk.speaker)
+            return KokoroPlayer.Chunk(
                 text: chunk.text,
                 spanStart: chunk.start,
-                wordWeights: text.spans[chunk.start..<chunk.end].map { max(1, $0.text.trimmingCharacters(in: .whitespaces).count) }
+                wordWeights: text.spans[chunk.start..<chunk.end].map { max(1, $0.text.trimmingCharacters(in: .whitespaces).count) },
+                voice: who?.kokoroVoiceID ?? narratorVoice,
+                speed: Float(min(max(baseSpeed * (who?.pace ?? 1), 0.5), 2.0)),
+                gapAfter: chunk.endsTurn ? Self.turnGap : 0
             )
         }
         guard !chunks.isEmpty else {
@@ -233,8 +327,8 @@ final class Reader: NSObject, AVSpeechSynthesizerDelegate {
         kokoroGeneration += 1
         let gen = kokoroGeneration
         kokoroActive = true
-        let voiceID = kokoroVoiceID
-        let speed = Float(min(max(rateMultiplier, 0.5), 2.0))
+        let voiceID = narratorVoice
+        let castVoices = Array(Set(chunks.map(\.voice)).subtracting([narratorVoice]))
         let player = kokoro
         player.onWord = { [weak self] span in
             guard let self, self.kokoroActive, gen == self.kokoroGeneration, self.isSpeaking else { return }
@@ -254,6 +348,8 @@ final class Reader: NSObject, AVSpeechSynthesizerDelegate {
         }
         Task { [weak self] in
             let ready = await KokoroVoice.shared.prepareIfDownloaded(voice: voiceID)
+            // A cast needs its voice packs too; fetched once, then cached by the SDK.
+            for voice in castVoices { await KokoroVoice.shared.preload(voice: voice) }
             guard let self, self.kokoroActive, gen == self.kokoroGeneration, self.isSpeaking else { return }
             guard ready else {
                 self.kokoroActive = false
@@ -263,14 +359,14 @@ final class Reader: NSObject, AVSpeechSynthesizerDelegate {
             if self.isPaused {
                 // Paused while the models loaded: hold the start for resume.
                 self.pendingKokoroStart = {
-                    player.start(chunks: chunks) { text in
-                        try await KokoroVoice.shared.synthesize(text: text, voice: voiceID, speed: speed)
+                    player.start(chunks: chunks) { chunk in
+                        try await KokoroVoice.shared.synthesize(text: chunk.text, voice: chunk.voice, speed: chunk.speed)
                     }
                 }
                 return
             }
-            player.start(chunks: chunks) { text in
-                try await KokoroVoice.shared.synthesize(text: text, voice: voiceID, speed: speed)
+            player.start(chunks: chunks) { chunk in
+                try await KokoroVoice.shared.synthesize(text: chunk.text, voice: chunk.voice, speed: chunk.speed)
             }
         }
     }
@@ -305,6 +401,20 @@ final class Reader: NSObject, AVSpeechSynthesizerDelegate {
         utterance.rate = Self.rate(for: rateMultiplier)
         utterance.pitchMultiplier = 1.02
         utterance.prefersAssistiveTechnologySettings = false
+        return utterance
+    }
+
+    /// An utterance in the chunk's speaker's voice, pitch and pace, with a
+    /// breath after the last chunk of a turn.
+    private func makeUtterance(for chunk: SpeechChunk) -> AVSpeechUtterance {
+        let who = member(for: chunk.speaker)
+        let whoVoice = who?.voiceIdentifier.flatMap { AVSpeechSynthesisVoice(identifier: $0) }
+        let utterance = makeUtterance(chunk.text, voiceOverride: who?.isNarrator == false ? whoVoice : nil)
+        if let who, !who.isNarrator {
+            utterance.pitchMultiplier = Float(min(max(who.pitch, 0.5), 2.0)) * 1.02
+            utterance.rate = Self.rate(for: rateMultiplier * who.pace)
+        }
+        if chunk.endsTurn { utterance.postUtteranceDelay = Self.turnGap }
         return utterance
     }
 
@@ -373,6 +483,9 @@ final class Reader: NSObject, AVSpeechSynthesizerDelegate {
         stop()
         document = nil
         chapters = []
+        cast = nil
+        turns = []
+        currentSpeaker = nil
         text = TimedText()
         currentIndex = nil
         chapterIndex = 0
@@ -467,6 +580,18 @@ final class Reader: NSObject, AVSpeechSynthesizerDelegate {
         return computed
     }
 
+    /// Apple voices fit for a cast: the current language, best quality first,
+    /// no novelty voices and not the user's Personal Voice.
+    static func castableVoices() -> [AVSpeechSynthesisVoice] {
+        let code = Locale.current.language.languageCode?.identifier ?? "en"
+        return AVSpeechSynthesisVoice.speechVoices()
+            .filter { $0.language.hasPrefix(code) && !$0.voiceTraits.contains(.isNoveltyVoice) && !$0.voiceTraits.contains(.isPersonalVoice) }
+            .sorted { a, b in
+                if a.quality != b.quality { return a.quality.rawValue > b.quality.rawValue }
+                return a.name < b.name
+            }
+    }
+
     private static func computeBestDefaultVoice() -> AVSpeechSynthesisVoice? {
         let code = Locale.current.language.languageCode?.identifier ?? "en"
         let exact = Locale.current.identifier(.bcp47)
@@ -497,6 +622,8 @@ final class Reader: NSObject, AVSpeechSynthesizerDelegate {
     /// on change so observers of the facets don't fire per word (P2).
     private func refreshFacets() {
         guard let document else { return }
+        let speaker = currentTurnIndex.map { turns[$0].speaker } ?? nil
+        if speaker != currentSpeaker { currentSpeaker = speaker }
         let starts = document.chapterSpanStarts
         guard starts.count > 1 else { return }
         let total = starts[starts.count - 1]

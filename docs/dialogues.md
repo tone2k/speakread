@@ -1,6 +1,6 @@
 # Dialogues: hear Plato performed
 
-Status: design, with the parser and cast model implemented. Reader and screens follow once the latest Read changes are pushed.
+Status: phases 1 to 3 of the build order are implemented. A dialogue imports with its cast, both engines read one voice per character with a breath between turns, and the Cast sheet, speaker labels, line skipping and the laptop-pose stage are in the app. A bundled Euthyphro sample seeds the shelf. Remaining: Foundation Models attribution for unlabeled texts, Read with me, and the optional cloud performance.
 
 ## The intent, in one sentence
 
@@ -99,9 +99,9 @@ struct Cast: Codable, Hashable {
 
 ## Build order
 
-1. **Parser and cast model.** Done: `Verso/Model/Dialogue.swift`.
-2. **Reader: one utterance per turn, per-member voice.** Small change in `Reader.play(from:)` and the word-boundary delegate.
-3. **Cast sheet and speaker kickers** in Listening and the spread. Laptop-pose stage.
+1. **Parser and cast model.** Done: `Verso/Model/Dialogue.swift`. Plain-text import with Gutenberg boilerplate stripping: `Verso/Import/TextImporter.swift`.
+2. **Reader: chunks never cross a turn, each chunk carries its speaker.** Done. Apple path: the member's voice, pitch and pace per utterance, `postUtteranceDelay` at the end of a turn. Kokoro path: the member's Kokoro voice and speed per chunk, with the breath baked into the buffer as silence so it pauses with the audio.
+3. **Cast sheet, speaker labels, line skipping, laptop-pose stage.** Done: `Verso/Screens/CastView.swift`. The sheet opens on its own the first time a dialogue is opened.
 4. **Foundation Models attribution** for texts without labels, behind a "Find the speakers" button, so it never runs without asking.
 5. **Neural on-device voice** as a second `Voice` engine, downloadable from Ears & Voice.
 6. **Read with me.**
