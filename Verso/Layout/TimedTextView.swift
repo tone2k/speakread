@@ -39,6 +39,50 @@ struct TimedTextView: UIViewRepresentable {
         Coordinator()
     }
 
+    /// The proposal is the truth about width. A non-scrolling UITextView's
+    /// own idea of its size is its content size, measured at whatever width
+    /// the text container last had — in a two-page spread that was the FULL
+    /// spread width, so each page's text view arrived wider than its pane,
+    /// SwiftUI centered the overflow across the seam, and the two pages
+    /// overprinted (headers, pure SwiftUI, stayed put — the tell). Pin the
+    /// width to the proposal and measure only the height the text needs at
+    /// that width. The measurement is cached per (content, width bucket)
+    /// in the coordinator: pagination turns re-measure once, spoken words
+    /// never do (P14 discipline).
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        let width = proposal.width ?? (uiView.bounds.width > 0 ? uiView.bounds.width : nil)
+        guard let width, width > 0, width.isFinite else { return nil }
+        if follows {
+            // A following view fills what it is given (Playback, the
+            // lectern's long page); its scroll view owns the rest.
+            let height = (proposal.height?.isFinite == true ? proposal.height : nil)
+                ?? (uiView.bounds.height > 0 ? uiView.bounds.height : nil)
+            guard let height else { return nil }
+            return CGSize(width: width, height: height)
+        }
+        if let height = proposal.height, height.isFinite {
+            return CGSize(width: width, height: height)
+        }
+        let coordinator = context.coordinator
+        let signature = Signature(text: text, fontSize: fontSize, noted: noted, dimBefore: dimBefore)
+        let bucket = (width / 8).rounded()
+        if coordinator.measuredSignature == signature,
+           coordinator.measuredWidthBucket == bucket,
+           let height = coordinator.measuredHeight {
+            return CGSize(width: width, height: height)
+        }
+        let height = ceil(uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height)
+        // Cache only a measurement of the content the coordinator has
+        // actually installed; a sizing query that outran updateUIView
+        // measured an empty view, and that number must not stick.
+        if coordinator.signature == signature {
+            coordinator.measuredSignature = signature
+            coordinator.measuredWidthBucket = bucket
+            coordinator.measuredHeight = height
+        }
+        return CGSize(width: width, height: height)
+    }
+
     func makeUIView(context: Context) -> UITextView {
         let textView = UITextView(usingTextLayoutManager: true)
         textView.isEditable = false
@@ -106,6 +150,12 @@ struct TimedTextView: UIViewRepresentable {
         weak var textView: UITextView?
         var lockView: UIView?
         var signature: Signature?
+        /// The last sizeThatFits measurement: which content, at which
+        /// 8 pt width bucket, needed this height. One entry is enough —
+        /// the two spread pages share a width, so they share the entry.
+        var measuredSignature: Signature?
+        var measuredWidthBucket: CGFloat?
+        var measuredHeight: CGFloat?
         /// The user grabbed the scroll: following pauses until the lock
         /// comes back into view, playback resumes, or a seek lands.
         var userHold = false

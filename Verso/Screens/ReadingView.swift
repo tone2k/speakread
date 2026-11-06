@@ -107,8 +107,20 @@ struct ReadingView: View {
 
     // MARK: Spread
 
+    /// Vertical space the trailing page must keep clear at its bottom:
+    /// the transport overlay that sits there (bar 64 + stream line +
+    /// hold-to-note 44 + spacings, plus its 32 pt bottom padding). The
+    /// trailing page's footer lifts by this much and the shared
+    /// pagination height shrinks by the same amount, so text, footer,
+    /// and transport never share a point.
+    private static let transportReserve: CGFloat = 176
+
     private func spread(fold: Fold) -> some View {
-        let pageSize = CGSize(width: max(100, fold.leadingWidth - 56), height: max(100, fold.size.height - 132))
+        // Pagination is sized to the NARROWER pane: a fold need not be
+        // centered, and a page measured for the wide pane overflows the
+        // narrow one. Both pages render inside their own half either way.
+        let paneWidth = fold.trailingWidth > 0 ? min(fold.leadingWidth, fold.trailingWidth) : fold.leadingWidth
+        let pageSize = CGSize(width: max(100, paneWidth - 56), height: max(100, fold.size.height - 132 - Self.transportReserve))
         let pagination = paginationCache.pagination(for: reader.text, pageSize: pageSize, fontSize: fontSize, chapter: reader.chapterIndex)
         let currentPage = pagination.page(containing: reader.currentIndex ?? 0)
         let pair = spreadPair ?? currentPage / 2
@@ -148,6 +160,7 @@ struct ReadingView: View {
                 footerTrailing: right < pagination.pageCount ? String(format: "P.%03d", right + 1) : "",
                 fontSize: fontSize,
                 edge: .trailing,
+                bottomInset: Self.transportReserve,
                 onTap: { reader.play(from: $0) },
                 onLineMidY: { y in
                     if currentPage == right {
@@ -314,6 +327,11 @@ struct BookPage: View {
     let footerTrailing: String
     let fontSize: CGFloat
     let edge: HorizontalEdge
+    /// Extra room left below the footer. The spread's trailing page
+    /// carries the transport as an overlay at its bottom edge; the page
+    /// lifts its footer (and, via the shared pagination height, its
+    /// text) clear of that cluster by this much.
+    var bottomInset: CGFloat = 0
     var onTap: ((Int) -> Void)?
     /// Lock line mid-Y in text coordinates, for the seam trace.
     var onLineMidY: ((CGFloat?) -> Void)?
@@ -361,7 +379,10 @@ struct BookPage: View {
         .padding(.leading, edge == .leading ? 32 : 24)
         .padding(.trailing, edge == .leading ? 24 : 32)
         .padding(.top, 24)
-        .padding(.bottom, 20)
+        .padding(.bottom, 20 + bottomInset)
+        // A page never paints outside its own bounds: whatever a child
+        // mis-measures, it is cut at the pane edge, not across the seam.
+        .clipped()
     }
 }
 
