@@ -239,10 +239,14 @@ final class Engine {
     func open(_ document: Document) {
         switch document.kind {
         case .book:
-            reader.load(document)
+            // Playback is owned by the Reader, never by navigation:
+            // reopening the book that is already loaded must NOT reload
+            // it — load() stops first, which is what killed the audio
+            // when Tony left for Pocket and came back to the book.
+            if reader.document?.id != document.id { reader.load(document) }
             path.append(.reading(document.id))
         case .recording:
-            player.load(document)
+            if player.document?.id != document.id { player.load(document) }
             path.append(.playback(document.id))
         }
         refreshContinuing()

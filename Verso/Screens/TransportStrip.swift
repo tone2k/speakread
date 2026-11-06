@@ -27,7 +27,7 @@ struct TransportStrip: View {
         VStack(spacing: 0) {
             Rectangle().fill(HUD.signal).frame(height: 2)
             content()
-                .frame(height: 54)
+                .frame(height: 50)
                 .padding(.horizontal, 12)
         }
         .background(HUD.bg1)

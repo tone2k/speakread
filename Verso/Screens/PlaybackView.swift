@@ -123,7 +123,10 @@ struct PlaybackView: View {
             // Older recordings that were never judged get judged now.
             MeetingDigester.shared.detectAndDigestIfNeeded(for: document)
         }
-        .onDisappear { player.pause() }
+        // No onDisappear pause: the Player is engine-owned and the
+        // transport strip follows playback to every screen. Leaving
+        // this screen must not touch the audio (same rule as the
+        // Reader in ReadingView).
     }
 
     private var titleField: some View {

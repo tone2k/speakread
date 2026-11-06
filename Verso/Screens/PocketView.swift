@@ -97,44 +97,34 @@ struct PocketView: View {
     }
 
     private var recordDock: some View {
-        VStack(spacing: 10) {
-            if engine.recorder.isRecording {
-                // 2e #2 (already in the 2b spec): while recording, the
-                // dock button opens the recorder instead of recording.
-                Button {
-                    engine.startRecording()
-                } label: {
-                    Text("OPEN REC")
+        // While recording, the dock steps aside entirely: the follow-me
+        // transport strip already carries the REC clock, pause, mark and
+        // stop, and its body opens the recording screen. A second big
+        // orange block stacked on top of the strip was pure mass.
+        Group {
+            if !engine.recorder.isRecording {
+                VStack(spacing: 10) {
+                    Button {
+                        engine.startRecording()
+                    } label: {
+                        Text("●").hudText(.title1)
+                    }
+                    .buttonStyle(SignalButtonStyle(size: 84))
+                    .accessibilityLabel("Record")
+                    Text("TAP TO RECORD")
                         .hudText(.label)
-                        .foregroundStyle(HUD.signalInk)
-                        .frame(width: 84, height: 84)
-                        .overlay(Chamfer(cut: HUD.chamfer(for: 84)).stroke(HUD.ruleStrong, lineWidth: 1))
-                        .contentShape(Chamfer(cut: HUD.chamfer(for: 84)))
+                        .foregroundStyle(HUD.fg1)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Open the recording")
-            } else {
-                Button {
-                    engine.startRecording()
-                } label: {
-                    Text("●").hudText(.title1)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+                .background {
+                    HUD.bg0
+                        .overlay(alignment: .top) { Rectangle().fill(HUD.rule).frame(height: 1) }
+                        .ignoresSafeArea()
                 }
-                .buttonStyle(SignalButtonStyle(size: 84))
-                .accessibilityLabel("Record")
-                Text("TAP TO RECORD")
-                    .hudText(.label)
-                    .foregroundStyle(HUD.fg1)
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 12)
-        .padding(.bottom, 8)
-        .background {
-            HUD.bg0
-                .overlay(alignment: .top) { Rectangle().fill(HUD.rule).frame(height: 1) }
-                .ignoresSafeArea()
-        }
-        .sensoryFeedback(.impact(flexibility: .soft), trigger: engine.recorder.isRecording)
     }
 }
 

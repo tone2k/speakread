@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct RootView: View {
     @Environment(Engine.self) private var engine
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         @Bindable var engine = engine
@@ -34,9 +35,15 @@ struct RootView: View {
         // The follow-me transport: pinned under every screen in the
         // stack while a recording or playback is live, absent otherwise
         // (TransportStrip renders nothing at rest, so the inset is zero).
+        // The inset RESERVES the strip's height — content reflows above
+        // it instead of being covered — and the only motion is a short
+        // opacity settle when a session starts or ends (none at all
+        // under Reduce Motion): no spring, no slide, no pop.
         .safeAreaInset(edge: .bottom, spacing: 0) {
             TransportStrip()
+                .transition(.opacity)
         }
+        .animation(transportAnimation, value: transportKind)
         .alert("Verso", isPresented: Binding(get: { engine.lastError != nil }, set: { if !$0 { engine.lastError = nil } })) {
             Button("OK") { engine.lastError = nil }
         } message: {
@@ -50,6 +57,20 @@ struct RootView: View {
             if phase == .background { engine.reader.savePosition() }
         }
         .onChange(of: engine.path) { engine.refreshContinuing() }
+    }
+
+    /// Which follow-me session the strip is showing, if any. Keying the
+    /// settle animation on this keeps appearance calm and one-shot: the
+    /// strip fades in/out once per session change, never per tick.
+    private var transportKind: Int {
+        if engine.recorder.isRecording { return 1 }
+        if engine.reader.isSpeaking { return 2 }
+        if engine.player.isPlaying { return 3 }
+        return 0
+    }
+
+    private var transportAnimation: Animation? {
+        reduceMotion ? nil : .easeOut(duration: 0.15)
     }
 }
 
