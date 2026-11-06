@@ -104,10 +104,14 @@ struct Mark: Codable, Hashable, Identifiable {
     var label: String
 }
 
-/// A chapter of a book: a title and its text.
+/// A chapter of a book: a title and its text. A dialogue chapter also knows
+/// who says each span, as turns.
 struct Chapter: Codable, Hashable {
     var title: String
     var text: String
+    var turns: [Turn]? = nil
+
+    var isDialogue: Bool { !(turns?.isEmpty ?? true) }
 }
 
 func formatTimecode(_ seconds: TimeInterval, tenths: Bool = false) -> String {

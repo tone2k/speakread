@@ -19,6 +19,7 @@ final class Document {
     var transcriptData: Data?
     var chaptersData: Data?
     var marksData: Data?
+    var castData: Data?
     var chapterIndex: Int
     var spanIndex: Int
     var wordCount: Int
@@ -63,6 +64,14 @@ final class Document {
         get { marksData.flatMap { try? JSONDecoder().decode([Mark].self, from: $0) } ?? [] }
         set { marksData = try? JSONEncoder().encode(newValue) }
     }
+
+    /// The characters of a dialogue and their voices. Nil for ordinary books.
+    var cast: Cast? {
+        get { castData.flatMap { try? JSONDecoder().decode(Cast.self, from: $0) } }
+        set { castData = newValue.flatMap { try? JSONEncoder().encode($0) } }
+    }
+
+    var isDialogue: Bool { chapters.contains { $0.isDialogue } }
 
     /// 0...1 through the whole document.
     var progress: Double {
