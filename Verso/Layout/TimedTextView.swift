@@ -24,6 +24,9 @@ struct TimedTextView: UIViewRepresentable {
     var noted: Set<Int> = []
     /// Scrolls internally and keeps the lock in the middle band.
     var follows: Bool = false
+    /// Playback is rolling. A false→true flip releases a manual-scroll
+    /// hold: following resumes when playback does.
+    var playing: Bool = true
     /// Global index speech is prepared through. Words after the current one
     /// up to here carry a faint dotted underline: the buffer ahead of the head.
     var bufferedThrough: Int?
@@ -67,12 +70,21 @@ struct TimedTextView: UIViewRepresentable {
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
         textView.addGestureRecognizer(tap)
         context.coordinator.textView = textView
+        if follows {
+            // Only a following view needs the scroll delegate (it is how
+            // a manual scroll registers its follow hold).
+            textView.delegate = context.coordinator
+        }
         return textView
     }
 
     func updateUIView(_ textView: UITextView, context: Context) {
         let coordinator = context.coordinator
         coordinator.parent = self
+        if playing && !coordinator.wasPlaying {
+            coordinator.userHold = false
+        }
+        coordinator.wasPlaying = playing
         if coordinator.signature != Signature(text: text, fontSize: fontSize, noted: noted, dimBefore: dimBefore) {
             coordinator.signature = Signature(text: text, fontSize: fontSize, noted: noted, dimBefore: dimBefore)
             coordinator.installContent(in: textView)
@@ -89,11 +101,15 @@ struct TimedTextView: UIViewRepresentable {
 
     // MARK: Coordinator
 
-    final class Coordinator: NSObject {
+    final class Coordinator: NSObject, UITextViewDelegate {
         var parent: TimedTextView?
         weak var textView: UITextView?
         var lockView: UIView?
         var signature: Signature?
+        /// The user grabbed the scroll: following pauses until the lock
+        /// comes back into view, playback resumes, or a seek lands.
+        var userHold = false
+        var wasPlaying = true
         private var offsets: [Int] = []
         private var lastLockIndex: Int?
         private var lastDimmedUpTo = 0
@@ -133,6 +149,7 @@ struct TimedTextView: UIViewRepresentable {
             lastBuffered = 0..<0
             lastLockIndex = nil
             lastLineMidY = nil
+            userHold = false
             installKnots(in: textView)
             updateLock(in: textView, force: true)
         }
@@ -208,6 +225,11 @@ struct TimedTextView: UIViewRepresentable {
                 return
             }
             guard force || current != lastLockIndex else { return }
+            // A jump — a seek, a skip, a tap on a far word — is the user
+            // going somewhere on purpose: following resumes there.
+            if let last = lastLockIndex, abs(current - last) > 40 {
+                userHold = false
+            }
             guard let rect = rect(forSpan: current, in: textView) else { return }
             let wasHidden = lockView.isHidden
             let sameLine = !wasHidden && abs(lockView.frame.minY - rect.minY) < 1
@@ -278,19 +300,40 @@ struct TimedTextView: UIViewRepresentable {
             lastBuffered = target
         }
 
+        /// The user took the scroll: stop following until they come back.
+        func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+            if parent?.follows == true { userHold = true }
+        }
+
         private func followLock(in textView: UITextView, rect: CGRect) {
             let visibleTop = textView.contentOffset.y
             let visibleHeight = textView.bounds.height
             guard visibleHeight > 0 else { return }
             let bandTop = visibleTop + visibleHeight * 0.2
             let bandBottom = visibleTop + visibleHeight * 0.8
+            if userHold {
+                // Holding — unless the lock is back on screen, which
+                // means the user scrolled home and following resumes.
+                if rect.midY >= bandTop, rect.midY <= bandBottom {
+                    userHold = false
+                } else {
+                    return
+                }
+            }
             if rect.midY < bandTop || rect.midY > bandBottom {
+                // TextKit lays out lazily, so contentSize can lag the
+                // real extent after a long jump; never let it clamp the
+                // target above the lock's own line (the skip stall).
+                let contentHeight = max(textView.contentSize.height, rect.maxY)
                 let target = min(
                     max(0, rect.midY - visibleHeight * 0.4),
-                    max(0, textView.contentSize.height - visibleHeight)
+                    max(0, contentHeight - visibleHeight)
                 )
                 if abs(target - visibleTop) > 1 {
-                    textView.setContentOffset(CGPoint(x: 0, y: target), animated: true)
+                    textView.setContentOffset(
+                        CGPoint(x: 0, y: target),
+                        animated: !UIAccessibility.isReduceMotionEnabled
+                    )
                 }
             }
         }

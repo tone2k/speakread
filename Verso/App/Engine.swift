@@ -29,6 +29,9 @@ final class Engine {
     let reader = Reader()
     let player = Player()
     let settings = Settings()
+    /// Lock-screen / Control Center transport + the recording Live
+    /// Activity, driven entirely off the three owners above.
+    private(set) var transport: TransportCenter?
 
     var path: [Route] = []
     var activity: Activity = .none {
@@ -55,8 +58,12 @@ final class Engine {
             document.spanIndex = span
             try? self?.context?.save()
         }
-        reader.voiceEngine = settings.voiceEngine
-        reader.kokoroVoiceID = settings.kokoroVoice
+        syncReaderVoice()
+        if transport == nil {
+            let center = TransportCenter(engine: self)
+            transport = center
+            center.start()
+        }
         seedSampleIfNeeded()
         #if DEBUG
         Self.writeVoiceRoster()
@@ -144,6 +151,41 @@ final class Engine {
             reader.cast = cast
             if reader.isSpeaking, !reader.isPaused { reader.play(from: reader.currentIndex) }
         }
+    }
+
+    // MARK: Voice selection — one active voice for the whole app
+
+    /// Every voice change in the app funnels through these three: picking
+    /// ANY voice — Apple stock, the Personal Voice, a Kokoro voice — makes
+    /// it the one active selection (see `Settings.voiceSelection`), and the
+    /// Reader is re-synced on the spot.
+    func selectVoiceEngine(_ choice: Settings.VoiceEngineChoice) {
+        guard settings.voiceEngine != choice else { return }
+        settings.voiceEngine = choice
+        syncReaderVoice()
+    }
+
+    func selectAppleVoice(_ voice: AVSpeechSynthesisVoice) {
+        settings.voiceIdentifier = voice.identifier
+        settings.voiceEngine = .apple
+        syncReaderVoice()
+    }
+
+    func selectKokoroVoice(_ id: String) {
+        settings.kokoroVoice = id
+        settings.voiceEngine = .kokoro
+        syncReaderVoice()
+        Task { await KokoroVoice.shared.preload(voice: id) }
+    }
+
+    /// Pushes the persisted selection into the Reader. Mid-playback the
+    /// Reader restarts the current sentence in the new voice — position
+    /// is never lost (see `Reader.voiceSettingsChanged`).
+    func syncReaderVoice() {
+        reader.voiceEngine = settings.voiceEngine
+        reader.kokoroVoiceID = settings.kokoroVoice
+        reader.voice = settings.voice
+        reader.voiceSettingsChanged()
     }
 
     // MARK: Recording
@@ -387,5 +429,38 @@ final class Settings {
     var voice: AVSpeechSynthesisVoice? {
         if let id = voiceIdentifier, let v = AVSpeechSynthesisVoice(identifier: id) { return v }
         return Reader.bestDefaultVoice()
+    }
+
+    /// The ONE active reading voice. The persisted stores (`voiceEngine`,
+    /// `kokoroVoice`, `voiceIdentifier`) are just its memory: the engine
+    /// choice decides which store wins — that is also the migration rule
+    /// for libraries saved by older builds, so exactly one voice can ever
+    /// read as "selected" anywhere in the UI.
+    enum VoiceSelection: Equatable {
+        case kokoro(String)
+        case apple(String)
+    }
+
+    var voiceSelection: VoiceSelection {
+        switch voiceEngine {
+        case .kokoro:
+            return .kokoro(kokoroVoice)
+        case .apple:
+            return .apple(voiceIdentifier ?? Reader.bestDefaultVoice()?.identifier ?? "")
+        }
+    }
+
+    /// The active voice's display name for readouts (book view, picker).
+    /// The Personal Voice is "Your Voice" — its name, everywhere it names
+    /// the voice; the literal iOS feature name survives only in the
+    /// directions that walk Apple's own Settings menus.
+    var activeVoiceDisplayName: String {
+        switch voiceSelection {
+        case .kokoro(let id):
+            return KokoroVoice.englishVoices.first { $0.id == id }?.name ?? "Kokoro"
+        case .apple(let id):
+            guard let voice = AVSpeechSynthesisVoice(identifier: id) else { return "Default" }
+            return voice.voiceTraits.contains(.isPersonalVoice) ? "Your Voice" : voice.name
+        }
     }
 }

@@ -139,7 +139,7 @@ struct ReadingView: View {
                 noted: noted,
                 header: "CH \(String(format: "%02d", reader.chapterIndex + 1)) · \(chapterTitle.uppercased())",
                 headerTrailing: speakerName.map { "● \($0.uppercased())" } ?? "",
-                footer: reader.voice?.name ?? "",
+                footer: engine.settings.activeVoiceDisplayName,
                 footerTrailing: right < pagination.pageCount ? String(format: "P.%03d", right + 1) : "",
                 fontSize: fontSize,
                 edge: .trailing,
@@ -220,20 +220,24 @@ struct ReadingView: View {
                 }
             } else {
                 VStack(spacing: 0) {
-                    ScrollView {
-                        BookPage(
-                            spans: reader.text.spans[...],
-                            currentIndex: reader.currentIndex,
-                            noted: notedSpans,
-                            header: document.title.uppercased(),
-                            headerTrailing: chapterTitle,
-                            footer: "",
-                            footerTrailing: "",
-                            fontSize: fontSize,
-                            edge: .leading,
-                            onTap: { reader.play(from: $0) }
-                        )
-                    }
+                    // No fold frame: one long page. The TextKit view
+                    // scrolls ITSELF here (follows) — inside a SwiftUI
+                    // ScrollView nothing ever moved it to the spoken
+                    // line, so playback walked off the page.
+                    BookPage(
+                        spans: reader.text.spans[...],
+                        currentIndex: reader.currentIndex,
+                        noted: notedSpans,
+                        header: document.title.uppercased(),
+                        headerTrailing: chapterTitle,
+                        footer: "",
+                        footerTrailing: "",
+                        fontSize: fontSize,
+                        edge: .leading,
+                        onTap: { reader.play(from: $0) },
+                        follows: true,
+                        playing: reader.isSpeaking && !reader.isPaused
+                    )
                     ReadingTransport(document: document, compact: false)
                         .padding(.bottom, 24)
                 }
@@ -305,6 +309,13 @@ struct BookPage: View {
     var onLineMidY: ((CGFloat?) -> Void)?
     /// Global index speech is prepared through: the buffer ahead of the head.
     var bufferedThrough: Int?
+    /// The text view scrolls itself and follows the spoken line. Only
+    /// for the single long page (no pagination): spread pages are fixed
+    /// and follow by turning instead.
+    var follows: Bool = false
+    /// Playback is rolling: a pause→play flip releases a manual-scroll
+    /// hold in the following text view.
+    var playing: Bool = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -315,11 +326,13 @@ struct BookPage: View {
                 indexOffset: spans.startIndex,
                 fontSize: fontSize,
                 noted: noted,
+                follows: follows,
+                playing: playing,
                 bufferedThrough: bufferedThrough,
                 onTap: onTap,
                 onLineMidY: onLineMidY
             )
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, maxHeight: follows ? .infinity : nil, alignment: .topLeading)
             Spacer(minLength: 0)
             HStack {
                 Text(footer).hudText(.meta).foregroundStyle(HUD.fg1)

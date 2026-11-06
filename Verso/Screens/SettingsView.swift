@@ -13,7 +13,6 @@ struct SettingsView: View {
     private var settings: Settings { engine.settings }
 
     var body: some View {
-        let selectedVoiceID = settings.voiceIdentifier ?? Reader.bestDefaultVoice()?.identifier
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 Text("Ears & Voice")
@@ -43,8 +42,7 @@ struct SettingsView: View {
                 section("VOICE · TEXT TO SPEECH") {
                     ForEach(Settings.VoiceEngineChoice.allCases) { choice in
                         row(title: choice.title, subtitle: choice.subtitle, selected: settings.voiceEngine == choice) {
-                            settings.voiceEngine = choice
-                            engine.reader.voiceEngine = choice
+                            engine.selectVoiceEngine(choice)
                         }
                     }
                     if settings.voiceEngine == .kokoro {
@@ -61,9 +59,11 @@ struct SettingsView: View {
                             .padding(.top, 12)
                             .padding(.bottom, 2)
                         ForEach(group.voices, id: \.identifier) { voice in
-                            row(title: voice.name, subtitle: voiceSubtitle(voice), selected: selectedVoiceID == voice.identifier) {
-                                settings.voiceIdentifier = voice.identifier
-                                engine.reader.voice = voice
+                            // Selected derives from the ONE active
+                            // selection: an Apple voice can only read as
+                            // selected while the Apple engine is active.
+                            row(title: voice.name, subtitle: voiceSubtitle(voice), selected: settings.voiceSelection == .apple(voice.identifier)) {
+                                engine.selectAppleVoice(voice)
                             }
                         }
                     }
@@ -126,8 +126,6 @@ struct SettingsView: View {
             personalStatus = AVSpeechSynthesizer.personalVoiceAuthorizationStatus
             hasPersonalVoice = voices.contains { $0.voiceTraits.contains(.isPersonalVoice) }
             kokoro.refreshState()
-            engine.reader.voiceEngine = settings.voiceEngine
-            engine.reader.kokoroVoiceID = settings.kokoroVoice
         }
         .alert("Create your Personal Voice", isPresented: $showsPersonalVoiceGuide) {
             Button("Open Settings") { openAppSettings() }
@@ -262,10 +260,8 @@ struct SettingsView: View {
             .padding(.vertical, 12)
             .overlay(alignment: .top) { Rectangle().fill(HUD.rule).frame(height: 1) }
             ForEach(KokoroVoice.englishVoices, id: \.id) { voice in
-                row(title: voice.name, subtitle: "Kokoro · \(voice.detail)", selected: settings.kokoroVoice == voice.id) {
-                    settings.kokoroVoice = voice.id
-                    engine.reader.kokoroVoiceID = voice.id
-                    Task { await kokoro.preload(voice: voice.id) }
+                row(title: voice.name, subtitle: "Kokoro · \(voice.detail)", selected: settings.voiceSelection == .kokoro(voice.id)) {
+                    engine.selectKokoroVoice(voice.id)
                 }
             }
         }
@@ -315,7 +311,7 @@ struct SettingsView: View {
                     }
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Your Personal Voice").hudText(.title3).foregroundStyle(HUD.fg0)
+                    Text("Your Voice").hudText(.title3).foregroundStyle(HUD.fg0)
                     Text(personalSubtitle).hudText(.meta).foregroundStyle(HUD.fg1)
                 }
                 Spacer()
@@ -336,7 +332,7 @@ struct SettingsView: View {
 
     private var personalVoiceSelected: Bool {
         guard let pv = settings.personalVoice else { return false }
-        return settings.voiceIdentifier == pv.identifier
+        return settings.voiceSelection == .apple(pv.identifier)
     }
 
     private var personalActionLabel: String {
@@ -352,8 +348,7 @@ struct SettingsView: View {
         switch personalStatus {
         case .authorized:
             if let pv = settings.personalVoice {
-                settings.voiceIdentifier = pv.identifier
-                engine.reader.voice = pv
+                engine.selectAppleVoice(pv)
             } else {
                 showsPersonalVoiceGuide = true
             }
@@ -366,8 +361,7 @@ struct SettingsView: View {
             voices = Self.voicesForCurrentLanguage()
             hasPersonalVoice = voices.contains { $0.voiceTraits.contains(.isPersonalVoice) }
             if personalStatus == .authorized, let pv = settings.personalVoice {
-                settings.voiceIdentifier = pv.identifier
-                engine.reader.voice = pv
+                engine.selectAppleVoice(pv)
             }
         }
     }
@@ -397,7 +391,7 @@ struct SettingsView: View {
         default: parts.append("Compact")
         }
         parts.append(Locale.current.localizedString(forIdentifier: voice.language) ?? voice.language)
-        if voice.voiceTraits.contains(.isPersonalVoice) { parts.append("Personal Voice") }
+        if voice.voiceTraits.contains(.isPersonalVoice) { parts.append("Your Voice") }
         return parts.joined(separator: " · ")
     }
 

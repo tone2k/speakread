@@ -31,6 +31,12 @@ struct RootView: View {
                     }
                 }
         }
+        // The follow-me transport: pinned under every screen in the
+        // stack while a recording or playback is live, absent otherwise
+        // (TransportStrip renders nothing at rest, so the inset is zero).
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            TransportStrip()
+        }
         .alert("Verso", isPresented: Binding(get: { engine.lastError != nil }, set: { if !$0 { engine.lastError = nil } })) {
             Button("OK") { engine.lastError = nil }
         } message: {

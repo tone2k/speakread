@@ -169,6 +169,7 @@ struct PlaybackView: View {
                     fontSize: fontSize,
                     dimBefore: true,
                     follows: true,
+                    playing: player.isPlaying,
                     onTap: { i in
                         player.seek(toSpan: i)
                         if !player.isPlaying { player.play() }

@@ -532,6 +532,32 @@ final class Reader: NSObject, AVSpeechSynthesizerDelegate {
         if isSpeaking && !isPaused { play(from: currentIndex) }
     }
 
+    /// The voice or engine changed under a live session (Engine's single
+    /// selection funnel calls this). Playing: restart at the current word
+    /// in the new voice — the current sentence re-reads, the position
+    /// never moves. Paused: drop the speech already queued in the OLD
+    /// voice and keep the position; resume() then finds nothing to
+    /// continue and restarts at the current word in the new voice.
+    func voiceSettingsChanged() {
+        guard isSpeaking else { return }
+        if isPaused {
+            synthesizer.stopSpeaking(at: .immediate)
+            playGeneration += 1
+            chunkCharBase.removeAll()
+            chunkGeneration.removeAll()
+            pendingChunks = []
+            enqueuedChunkIDs = []
+            notesLastID = nil
+            bufferedThrough = nil
+            kokoro.stop()
+            kokoroActive = false
+            pendingKokoroStart = nil
+            kokoroGeneration += 1
+        } else {
+            play(from: currentIndex)
+        }
+    }
+
     func setSleep(minutes: Int?) {
         sleepTimer?.invalidate()
         sleepTimer = nil

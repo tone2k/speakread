@@ -11,6 +11,7 @@ struct ListeningView: View {
 
     @State private var windowStart = 0
     @State private var sentenceStarts: [Int] = [0]
+    @State private var showsVoicePicker = false
 
     private var reader: Reader { engine.reader }
     private static let windowSize = 64
@@ -82,12 +83,17 @@ struct ListeningView: View {
             HStack {
                 RateMenu()
                 Spacer()
-                Text("VOICE · \((reader.voice?.name ?? "—").uppercased())")
-                    .hudText(.meta)
-                    .foregroundStyle(HUD.fg1)
-                    .frame(minHeight: 44)
-                    .padding(.horizontal, 12)
-                    .overlay(Rectangle().strokeBorder(HUD.rule, lineWidth: 1))
+                Button { showsVoicePicker = true } label: {
+                    Text("VOICE · \(engine.settings.activeVoiceDisplayName.uppercased())")
+                        .hudText(.meta)
+                        .foregroundStyle(HUD.fg1)
+                        .frame(minHeight: 44)
+                        .padding(.horizontal, 12)
+                        .overlay(Rectangle().strokeBorder(HUD.rule, lineWidth: 1))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Reading voice: \(engine.settings.activeVoiceDisplayName). Tap to change the voice.")
                 Spacer()
                 HoldToNoteButton()
             }
@@ -96,6 +102,7 @@ struct ListeningView: View {
         .padding(.horizontal, HUD.Space.closedMargin)
         .padding(.top, 8)
         .padding(.bottom, 24)
+        .sheet(isPresented: $showsVoicePicker) { VoicePickerSheet() }
         .onAppear { rebuildSentenceStarts() }
         .onChange(of: reader.chapterIndex) {
             windowStart = 0
@@ -126,7 +133,11 @@ struct ListeningView: View {
         let limit = windowStart + (Self.windowSize * 2) / 3
         guard current > limit || current < windowStart else { return }
         let target = max(0, current - 8)
-        let snapped = sentenceStarts.last { $0 <= target } ?? 0
+        var snapped = sentenceStarts.last { $0 <= target } ?? 0
+        // A sentence longer than the window has no start to snap to:
+        // fall back to a hard snap so the cursor can never leave the
+        // window behind (the stall Opus flagged).
+        if current >= snapped + Self.windowSize { snapped = target }
         if snapped != windowStart { windowStart = snapped }
     }
 
