@@ -222,9 +222,20 @@ final class MeetingDigester {
         if drafts.count == 1 {
             merged = drafts[0]
         } else {
-            let notes = drafts.enumerated().map { i, d in
-                "PART \(i + 1)\nTitle: \(d.title)\nSummary: \(d.summary)\nDecisions: \(d.decisions.joined(separator: "; "))\nActions: \(d.actions.map { "\($0.task) (\($0.owner), \($0.due))" }.joined(separator: "; "))\nQuestions: \(d.questions.joined(separator: "; "))\nTopics: \(d.topics.joined(separator: ", "))\nParticipants: \(d.participants.joined(separator: ", "))"
-            }.joined(separator: "\n\n")
+            var parts: [String] = []
+            for (i, d) in drafts.enumerated() {
+                let actions = d.actions.map { "\($0.task) (\($0.owner), \($0.due))" }.joined(separator: "; ")
+                var s = "PART \(i + 1)\n"
+                s += "Title: \(d.title)\n"
+                s += "Summary: \(d.summary)\n"
+                s += "Decisions: " + d.decisions.joined(separator: "; ") + "\n"
+                s += "Actions: " + actions + "\n"
+                s += "Questions: " + d.questions.joined(separator: "; ") + "\n"
+                s += "Topics: " + d.topics.joined(separator: ", ") + "\n"
+                s += "Participants: " + d.participants.joined(separator: ", ")
+                parts.append(s)
+            }
+            let notes = parts.joined(separator: "\n\n")
             let session = LanguageModelSession(instructions: Self.digestInstructions)
             let response = try await session.respond(to: "These are digests of the parts of one meeting, in order. Merge them into one digest for the whole meeting. Keep every decision and action, remove duplicates, and keep the summary to three sentences:\n\n\(notes)", generating: DigestDraft.self)
             merged = response.content
